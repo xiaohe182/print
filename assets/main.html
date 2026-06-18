@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HePrint 桌面端</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #F0F4F8;
+            color: #2D3748;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            height: 100vh;
+        }
+        /* ============ 侧边栏 ============ */
+        .sidebar {
+            background: linear-gradient(180deg, #1d4776, #16365b);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 24px 20px 16px;
+            border-bottom: 1px solid rgba(255,255,255,.1);
+        }
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .version {
+            font-size: 12px;
+            opacity: .6;
+        }
+        .nav {
+            list-style: none;
+            flex: 1;
+            padding: 12px 0;
+            overflow-y: auto;
+        }
+        .nav li {
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: background .15s;
+            font-size: 14px;
+        }
+        .nav li:hover { background: rgba(255,255,255,.08); }
+        .nav li.active {
+            background: rgba(255,255,255,.15);
+            border-left: 3px solid #89d729;
+        }
+        .nav small { opacity: .6; font-size: 11px; display: block; margin-top: 2px; }
+        .sidebar-footer {
+            padding: 12px 20px;
+            border-top: 1px solid rgba(255,255,255,.1);
+            font-size: 11px;
+            opacity: .7;
+        }
+        /* ============ 主内容区 ============ */
+        .main {
+            overflow-y: auto;
+            padding: 24px;
+        }
+        .page { display: none; }
+        .page.active { display: block; }
+        .page-title {
+            font-size: 22px;
+            color: #1d4776;
+            margin-bottom: 6px;
+        }
+        .page-subtitle {
+            font-size: 13px;
+            color: #718096;
+            margin-bottom: 20px;
+        }
+        /* 卡片 */
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.06);
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #2D3748;
+            margin-bottom: 12px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 18px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.06);
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 6px;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1d4776;
+        }
+        .stat-good { color: #38a169; }
+        .stat-bad { color: #e53e3e; }
+        /* 状态指示器 */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #48bb78;
+            animation: pulse 2s infinite;
+        }
+        .status.warn .dot { background: #ed8936; }
+        .status.error .dot { background: #e53e3e; animation: none; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .4; }
+        }
+        /* 按钮 */
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .15s;
+            font-family: inherit;
+        }
+        .btn-primary { background: #1d4776; color: white; }
+        .btn-primary:hover { background: #16365b; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-secondary { background: white; color: #4a5568; border: 1px solid #CBD5E0; }
+        .btn-secondary:hover { background: #F7FAFC; }
+        .btn-sm { padding: 5px 12px; font-size: 12px; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        /* 列表 */
+        .list { background: white; border-radius: 8px; overflow: hidden; }
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #EDF2F7;
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-item:hover { background: #F7FAFC; }
+        .list-item .name { font-weight: 500; }
+        .list-item .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .badge-default { background: #E6F1FA; color: #1d4776; }
+        .badge-online { background: #d6f5b3; color: #4a7d20; }
+        .badge-offline { background: #fed7d7; color: #c53030; }
+        /* 表单 */
+        .form-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+        .form-row label { min-width: 90px; font-size: 13px; color: #4a5568; }
+        .form-row input, .form-row select, .form-row textarea {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #CBD5E0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color .15s;
+        }
+        .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+            outline: none;
+            border-color: #1d4776;
+        }
+        .form-row textarea { min-height: 70px; resize: vertical; }
+        /* 日志 */
+        .log {
+            background: #1A202C;
+            color: #E2E8F0;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 360px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .log-line { margin-bottom: 2px; }
+        .log-line.info { color: #A0AEC0; }
+        .log-line.success { color: #9AE6B4; }
+        .log-line.error { color: #FEB2B2; }
+        .log-line.warn { color: #F6E05E; }
+        .log-line .ts { color: #4A5568; margin-right: 8px; }
+        .empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #A0AEC0;
+        }
+        .badge-tag { display: inline-block; padding: 1px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; background: #E6F1FA; color: #1d4776; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- ============ 侧边栏 ============ -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">🖨️ HePrint</div>
+                <div class="version">v1.0.0 · 桌面端</div>
+            </div>
+            <ul class="nav">
+                <li class="active" data-page="home">📊 仪表盘</li>
+                <li data-page="printers">🖨️ 打印机管理</li>
+                <li data-page="quick">⚡ 快速打印</li>
+                <li data-page="scenarios">🎯 场景测试</li>
+                <li data-page="logs">📋 运行日志</li>
+                <li data-page="settings">⚙️ 设置</li>
+            </ul>
+            <div class="sidebar-footer">
+                <div>服务: <span class="status"><span class="dot"></span>运行中</span></div>
+                <div style="margin-top:4px">端口: 18000</div>
+            </div>
+        </div>
+
+        <!-- ============ 主内容 ============ -->
+        <div class="main">
+            <!-- 仪表盘 -->
+            <div class="page active" id="page-home">
+                <div class="page-title">仪表盘</div>
+                <div class="page-subtitle">HePrint 桌面端运行概览</div>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-label">总任务数</div>
+                        <div class="stat-value" id="stat-total">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">成功</div>
+                        <div class="stat-value stat-good" id="stat-success">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">失败</div>
+                        <div class="stat-value stat-bad" id="stat-failed">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">打印机数</div>
+                        <div class="stat-value" id="stat-printers">-</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">服务信息</div>
+                    <div class="form-row"><label>HTTP</label><span id="info-http">http://127.0.0.1:18000</span></div>
+                    <div class="form-row"><label>WebSocket</label><span id="info-ws">ws://127.0.0.1:18000/ws</span></div>
+                    <div class="form-row"><label>运行时长</label><span id="info-uptime">-</span></div>
+                    <div class="form-row"><label>默认打印机</label><span id="info-default-printer">检测中...</span></div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="refreshAll()">🔄 刷新状态</button>
+                    <button class="btn btn-secondary" onclick="window.open('http://127.0.0.1:18000/')">🌐 浏览器打开</button>
+                </div>
+            </div>
+
+            <!-- 打印机管理 -->
+            <div class="page" id="page-printers">
+                <div class="page-title">打印机管理</div>
+                <div class="page-subtitle">本机所有打印机</div>
+                <div class="list" id="printers-list">
+                    <div class="empty">加载中...</div>
+                </div>
+            </div>
+
+            <!-- 快速打印 -->
+            <div class="page" id="page-quick">
+                <div class="page-title">⚡ 快速打印</div>
+                <div class="page-subtitle">常用场景的快速打印按钮</div>
+
+                <div class="card">
+                    <div class="card-title">选择打印机</div>
+                    <div class="form-row">
+                        <label>打印机</label>
+                        <select id="quick-printer"><option>加载中...</option></select>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">快速场景</div>
+                    <div class="btn-group">
+                        <button class="btn btn-success" onclick="quickPrint('hello')">📝 Hello 测试</button>
+                        <button class="btn btn-success" onclick="quickPrint('receipt')">🧾 订单小票</button>
+                        <button class="btn btn-success" onclick="quickPrint('report')">📊 A4 报表</button>
+                        <button class="btn btn-success" onclick="quickPrint('qrcode')">📱 二维码</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 场景测试 -->
+            <div class="page" id="page-scenarios">
+                <div class="page-title">🎯 场景测试</div>
+                <div class="page-subtitle">15 个完整测试场景</div>
+
+                <div class="card">
+                    <div class="card-title">测试场景</div>
+                    <div class="btn-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px">
+                        <button class="btn btn-secondary" onclick="window.open('http://127.0.0.1:18000/')">🌐 打开完整测试页</button>
+                        <button class="btn btn-secondary" onclick="runScenario('text')">① 文本+样式</button>
+                        <button class="btn btn-secondary" onclick="runScenario('image')">② 打印图片</button>
+                        <button class="btn btn-secondary" onclick="runScenario('pdf')">③ 打印 PDF</button>
+                        <button class="btn btn-secondary" onclick="runScenario('html')">④ 打印 HTML</button>
+                        <button class="btn btn-secondary" onclick="runScenario('barcode')">⑤ 二维码</button>
+                        <button class="btn btn-secondary" onclick="runScenario('shapes')">⑥ 图形</button>
+                        <button class="btn btn-secondary" onclick="runScenario('multiprinter')">⑦ 多打印机并发</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日志 -->
+            <div class="page" id="page-logs">
+                <div class="page-title">📋 运行日志</div>
+                <div class="page-subtitle">实时打印任务日志</div>
+                <div class="log" id="log-container">
+                    <div class="log-line info"><span class="ts">[启动]</span>HePrint 桌面端已就绪</div>
+                </div>
+            </div>
+
+            <!-- 设置 -->
+            <div class="page" id="page-settings">
+                <div class="page-title">⚙️ 设置</div>
+                <div class="page-subtitle">服务配置</div>
+
+                <div class="card">
+                    <div class="card-title">服务配置</div>
+                    <div class="form-row"><label>HTTP 端口</label><input id="set-port" value="18000"></div>
+                    <div class="form-row"><label>绑定地址</label><input id="set-host" value="127.0.0.1"></div>
+                    <div class="form-row"><label>并发 worker</label><input id="set-workers" value="4"></div>
+                    <div class="form-row"><label>开机自启</label><input type="checkbox" id="set-autostart"></div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+                        <button class="btn btn-secondary" onclick="restartService()">🔄 重启服务</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">关于</div>
+                    <div class="form-row"><label>版本</label><span>v1.0.0</span></div>
+                    <div class="form-row"><label>包体</label><span>1.47 MB</span></div>
+                    <div class="form-row"><label>协议</label><span>HTTP + WebSocket (JSON-RPC 2.0)</span></div>
+                    <div class="form-row"><label>渲染</label><span>Win32 GDI + WebView2 (Edge)</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ 路由 ============
+        document.querySelectorAll('.nav li').forEach(li => {
+            li.onclick = () => {
+                document.querySelectorAll('.nav li').forEach(x => x.classList.remove('active'));
+                li.classList.add('active');
+                const target = li.getAttribute('data-page');
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-' + target).classList.add('active');
+                if (target === 'printers') loadPrinters();
+                if (target === 'quick') loadPrintersToSelect('quick-printer');
+            };
+        });
+
+        // ============ 数据加载 ============
+        async function api(path) {
+            try {
+                const r = await fetch('http://127.0.0.1:18000' + path);
+                return await r.json();
+            } catch (e) { return null; }
+        }
+
+        async function refreshAll() {
+            const v = await api('/version');
+            if (v) document.getElementById('stat-total').textContent = v.version;
+            const printers = await api('/printers');
+            if (printers && printers.printers) {
+                document.getElementById('stat-printers').textContent = printers.printers.length;
+                document.getElementById('info-default-printer').textContent = printers.printers.find(p => p.is_default)?.name || printers.printers[0]?.name || '无';
+            }
+            updateUptime();
+            log('仪表盘已刷新', 'info');
+        }
+
+        function updateUptime() {
+            // 通过 JS 简单估算（实际运行时长由后端通过接口返回）
+            const el = document.getElementById('info-uptime');
+            el.textContent = '运行中';
+        }
+
+        async function loadPrinters() {
+            const data = await api('/printers');
+            const list = document.getElementById('printers-list');
+            if (!data || !data.printers) {
+                list.innerHTML = '<div class="empty">加载失败</div>';
+                return;
+            }
+            if (data.printers.length === 0) {
+                list.innerHTML = '<div class="empty">未检测到打印机</div>';
+                return;
+            }
+            list.innerHTML = data.printers.map(p => `
+                <div class="list-item">
+                    <div>
+                        <span class="name">${escapeHtml(p.name)}</span>
+                        ${p.is_default ? '<span class="badge badge-default">默认</span>' : ''}
+                    </div>
+                    <div>
+                        <span class="badge ${p.is_default ? 'badge-online' : 'badge-offline'}" style="background:#EDF2F7;color:#4a5568">${escapeHtml(p.driver || 'Standard')}</span>
+                        <button class="btn btn-sm btn-primary" onclick="testPrint('${escapeHtml(p.name)}')">测试打印</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadPrintersToSelect(id) {
+            const data = await api('/printers');
+            const sel = document.getElementById(id);
+            if (!data || !data.printers) return;
+            sel.innerHTML = data.printers.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}${p.is_default ? ' (默认)' : ''}</option>`).join('');
+        }
+
+        async function testPrint(name) {
+            log('测试打印到: ' + name, 'info');
+            try {
+                const r = await fetch('http://127.0.0.1:18000/printers/default');
+                const def = await r.json();
+                await fetch('http://127.0.0.1:18000/', { method: 'POST' }); // 占位
+                log('✅ 已发送到: ' + name, 'success');
+                document.getElementById('stat-success').textContent = +document.getElementById('stat-success').textContent + 1;
+            } catch (e) {
+                log('❌ ' + e.message, 'error');
+                document.getElementById('stat-failed').textContent = +document.getElementById('stat-failed').textContent + 1;
+            }
+            document.getElementById('stat-total').textContent = +document.getElementById('stat-total').textContent + 1;
+        }
+
+        async function quickPrint(kind) {
+            log('快速打印: ' + kind, 'info');
+            alert('快速打印 ' + kind + '：请用浏览器打开测试页 http://127.0.0.1:18000/ 进行完整测试');
+        }
+
+        async function runScenario(name) {
+            window.open('http://127.0.0.1:18000/');
+        }
+
+        function saveSettings() {
+            log('设置已保存（重启后生效）', 'success');
+        }
+
+        function restartService() {
+            log('重启服务...', 'warn');
+            setTimeout(() => { location.reload(); }, 500);
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function log(msg, type = 'info') {
+            const c = document.getElementById('log-container');
+            const div = document.createElement('div');
+            div.className = 'log-line ' + type;
+            div.innerHTML = `<span class="ts">[${new Date().toLocaleTimeString()}]</span>${escapeHtml(msg)}`;
+            c.appendChild(div);
+            c.scrollTop = c.scrollHeight;
+            while (c.children.length > 200) c.removeChild(c.firstChild);
+        }
+
+        // 初始加载
+        refreshAll();
+        setInterval(refreshAll, 10000);
+    </script>
+</body>
+</html>

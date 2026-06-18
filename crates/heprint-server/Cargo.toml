@@ -1,0 +1,25 @@
+[package]
+name = "heprint-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+heprint-core.workspace = true
+heprint-render.workspace = true
+heprint-print.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+once_cell.workspace = true
+uuid.workspace = true
+futures-util = "0.3"
+base64 = "0.22"

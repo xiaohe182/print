@@ -1,0 +1,17 @@
+[package]
+name = "heprint-render"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+heprint-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+qrcode.workspace = true
+image.workspace = true
+base64.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+anyhow.workspace = true

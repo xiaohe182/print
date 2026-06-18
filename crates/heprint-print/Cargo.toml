@@ -1,0 +1,16 @@
+[package]
+name = "heprint-print"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[dependencies]
+heprint-core.workspace = true
+heprint-render.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

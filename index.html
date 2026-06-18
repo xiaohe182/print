@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HePrint 桌面端打印测试中心 v1.0</title>
+    <script src="web-sdk/heprint.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Microsoft YaHei', -apple-system, sans-serif;
+            background: #F8FAFB;
+            color: #4d5b65;
+            min-height: 100vh;
+            font-size: 13px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1d4776, #467799);
+            color: white;
+            padding: 18px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 22px; font-weight: 500; }
+        .header .subtitle { font-size: 12px; opacity: 0.85; margin-top: 3px; }
+        .header-stats { text-align: right; font-size: 12px; }
+        .header-stats strong { color: #89d729; }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 30px;
+            background: #fff;
+            border-bottom: 1px solid #dee6ec;
+            font-size: 12px;
+        }
+        .status-item { display: inline-flex; align-items: center; gap: 6px; margin-right: 18px; }
+        .dot { width: 9px; height: 9px; border-radius: 50%; background: #d7dfe5; }
+        .dot.connected { background: #89d729; box-shadow: 0 0 6px #89d729; }
+        .dot.error { background: #f67a89; }
+        .dot.warning { background: #e5bf26; }
+
+        /* Main layout */
+        .main { display: grid; grid-template-columns: 240px 1fr; gap: 16px; padding: 16px 30px; max-width: 1500px; margin: 0 auto; }
+
+        /* Sidebar */
+        .sidebar { background: #fff; border: 1px solid #dee6ec; border-radius: 6px; overflow: hidden; max-height: 80vh; overflow-y: auto; }
+        .sidebar h3 {
+            padding: 10px 14px;
+            background: #F8FAFB;
+            color: #4d5b65;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            border-bottom: 1px solid #dee6ec;
+        }
+        .test-list { list-style: none; }
+        .test-list li {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f0f5f8;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .test-list li:hover { background: #f2f7fa; }
+        .test-list li.active {
+            background: #E6F1FA;
+            color: #1d4776;
+            font-weight: 500;
+            border-left: 3px solid #1d4776;
+            padding-left: 11px;
+        }
+        .test-list li small { display: block; color: #6b7b86; font-size: 10px; margin-top: 2px; font-weight: normal; }
+        .group-title {
+            padding: 8px 14px;
+            background: #f2f7fa;
+            color: #6b7b86;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        /* Content */
+        .content { background: #fff; border: 1px solid #dee6ec; border-radius: 6px; padding: 20px; min-height: 600px; }
+        .content h2 { font-size: 18px; color: #1d4776; margin-bottom: 6px; }
+        .content .desc { color: #6b7b86; font-size: 12px; margin-bottom: 16px; line-height: 1.6; }
+        .content h4 { color: #4d5b65; font-size: 12px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+
+        /* Form */
+        .form-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .form-row label { min-width: 80px; font-size: 12px; color: #4d5b65; }
+        .form-row input, .form-row select, .form-row textarea {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #C9D5DC;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: inherit;
+        }
+        .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+            outline: none;
+            border-color: #4b5b64;
+        }
+        .form-row textarea { min-height: 60px; resize: vertical; font-family: Consolas, monospace; }
+
+        /* Buttons */
+        .btn-group { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+        .btn {
+            padding: 7px 16px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: all .15s;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn-primary { background: #1d4776; color: white; }
+        .btn-primary:hover { background: #16365b; }
+        .btn-success { background: #89d729; color: white; }
+        .btn-success:hover { background: #76b727; }
+        .btn-warning { background: #e5bf26; color: white; }
+        .btn-warning:hover { background: #c9a51e; }
+        .btn-secondary { background: #fff; color: #4d5b65; border: 1px solid #C9D5DC; }
+        .btn-secondary:hover { background: #f2f7fa; }
+        .btn-danger { background: #f67a89; color: white; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* Console */
+        .console {
+            margin-top: 20px;
+            background: #1e2932;
+            color: #c9d5dc;
+            padding: 12px 16px;
+            border-radius: 3px;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 11px;
+            min-height: 200px;
+            max-height: 280px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+        .log-info { color: #9aafbd; }
+        .log-success { color: #89d729; }
+        .log-error { color: #f67a89; }
+        .log-warn { color: #e5bf26; }
+        .log-cmd { color: #467799; }
+        .ts { color: #6b7b86; margin-right: 6px; }
+
+        /* Preview */
+        .preview-area { margin-top: 14px; padding: 12px; background: #f2f7fa; border: 1px dashed #C9D5DC; border-radius: 3px; }
+        .preview-area .preview { background: white; padding: 16px; border: 1px solid #C9D5DC; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; }
+
+        /* Printer card */
+        .printer-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f2f7fa; border-radius: 4px; margin-bottom: 8px; }
+        .printer-card .name { font-weight: 500; color: #1d4776; }
+        .printer-card .badge { background: #89d729; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; margin-left: 8px; }
+        .printer-card .actions { display: flex; gap: 4px; }
+        .printer-card .actions button { padding: 3px 10px; font-size: 11px; }
+
+        /* Native print receipt */
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+        #print-area { display: none; }
+
+        /* Code block */
+        pre.code { background: #2c3540; color: #e6f1fa; padding: 10px 14px; border-radius: 3px; font-size: 11px; overflow-x: auto; margin-top: 8px; line-height: 1.5; }
+
+        .badge { display: inline-block; padding: 2px 8px; font-size: 10px; border-radius: 10px; font-weight: 500; vertical-align: middle; }
+        .badge-native { background: #E6F1FA; color: #1d4776; }
+        .badge-service { background: #d6f5b3; color: #4a7d20; }
+        .badge-beta { background: #fff3cd; color: #856404; }
+
+        .flex-row { display: flex; gap: 10px; align-items: center; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div>
+        <h1>🖨️ HePrint 桌面端打印测试中心</h1>
+        <div class="subtitle">v1.0.0 · 替代 C-Lodop 的极简本地打印服务（Rust + Axum + Win32 GDI）</div>
+    </div>
+    <div class="header-stats">
+        <div>HE 版本：<strong id="he-version">-</strong></div>
+        <div>服务：<strong id="service-version">-</strong></div>
+        <div>包体：<strong>1.39 MB</strong></div>
+    </div>
+</div>
+
+<!-- Status bar -->
+<div class="status-bar">
+    <div>
+        <span class="status-item">
+            <span class="dot" id="status-dot"></span>
+            <span id="status-text">检测中...</span>
+        </span>
+        <span class="status-item">📡 <code id="service-url">http://127.0.0.1:18000</code></span>
+        <span class="status-item">🖨️ 默认：<strong id="default-printer">-</strong></span>
+        <span class="status-item">📊 总数：<strong id="printer-count">-</strong></span>
+    </div>
+    <div>
+        <select id="target-printer" style="padding:4px 8px; border:1px solid #C9D5DC; border-radius:3px; font-size:12px;"></select>
+        <button class="btn btn-secondary" onclick="checkStatus()">🔄 刷新</button>
+    </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h3>功能场景</h3>
+        <ul class="test-list">
+            <div class="group-title">基础测试</div>
+            <li class="active" onclick="switchTest('1', this)">
+                <strong>① 系统检测</strong>
+                <small>服务状态 + 打印机列表</small>
+            </li>
+            <li onclick="switchTest('2', this)">
+                <strong>② 浏览器原生打印</strong>
+                <small>window.print() 立即可用</small>
+            </li>
+
+            <div class="group-title">HE_xxx 命令演示</div>
+            <li onclick="switchTest('3', this)">
+                <strong>③ 文本 + 样式</strong>
+                <small>HE_ADD_TEXT + 字号/加粗/颜色</small>
+            </li>
+            <li onclick="switchTest('4', this)">
+                <strong>④ 打印图片</strong>
+                <small>HE_ADD_IMAGE (base64 / URL)</small>
+            </li>
+            <li onclick="switchTest('5', this)">
+                <strong>⑤ 打印 PDF</strong>
+                <small>HE_ADD_PDF (base64 / URL)</small>
+            </li>
+            <li onclick="switchTest('6', this)">
+                <strong>⑥ 打印 HTML</strong>
+                <small>HE_ADD_HTML (P2 阶段)</small>
+            </li>
+            <li onclick="switchTest('7', this)">
+                <strong>⑦ 打印表格</strong>
+                <small>HE_ADD_TABLE</small>
+            </li>
+            <li onclick="switchTest('8', this)">
+                <strong>⑧ 二维码 / 条码</strong>
+                <small>HE_ADD_BARCODE</small>
+            </li>
+            <li onclick="switchTest('9', this)">
+                <strong>⑨ 图形（线 / 矩形）</strong>
+                <small>HE_ADD_LINE / HE_ADD_RECT</small>
+            </li>
+
+            <div class="group-title">综合业务</div>
+            <li onclick="switchTest('10', this)">
+                <strong>⑩ 订单小票（80mm）</strong>
+                <small>卷筒 + 表格 + 二维码</small>
+            </li>
+            <li onclick="switchTest('11', this)">
+                <strong>⑪ A4 销售报表</strong>
+                <small>多列 + 多份 + 横向</small>
+            </li>
+            <li onclick="switchTest('12', this)">
+                <strong>⑫ 多页文档</strong>
+                <small>HE_NEW_PAGE 强制分页</small>
+            </li>
+            <li onclick="switchTest('13', this)">
+                <strong>⑬ 批量打印</strong>
+                <small>循环 5 个任务</small>
+            </li>
+
+            <div class="group-title">高级</div>
+            <li onclick="switchTest('14', this)">
+                <strong>⑭ 选择打印机</strong>
+                <small>HE_SET_PRINTER + 实时切换</small>
+            </li>
+            <li onclick="switchTest('15', this)">
+                <strong>⑮ 链式 Builder API</strong>
+                <small>HE.build().text().print()</small>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Content -->
+    <div class="content" id="content">
+
+        <!-- 1. 系统检测 -->
+        <div class="test-panel" id="test-1">
+            <h2>① 系统检测 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">检测 HePrint 服务状态、版本、列出所有打印机。可点击列表中的"使用"快速切换。</div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="testCheckStatus()">🔍 检测服务</button>
+                <button class="btn btn-primary" onclick="testListPrinters()">🖨️ 列出打印机</button>
+                <button class="btn btn-secondary" onclick="testGetInfo()">ℹ️ 服务信息</button>
+                <button class="btn btn-warning" onclick="testReconnect()">🔄 重新连接</button>
+            </div>
+
+            <h4>已发现的打印机：</h4>
+            <div id="printer-list">
+                <p style="color:#6b7b86; font-size:12px; padding:10px;">点击"列出打印机"开始</p>
+            </div>
+        </div>
+
+        <!-- 2. 浏览器原生打印 -->
+        <div class="test-panel" id="test-2" style="display:none">
+            <h2>② 浏览器原生打印 <span class="badge badge-native">Native</span></h2>
+            <div class="desc">
+                使用浏览器自带的 <code>window.print()</code>，<strong>不依赖 HePrint 服务</strong>，断网也能用。
+                适合：开发期、临时打印、PDF 导出、纯 HTML 内容。
+            </div>
+
+            <div class="form-row">
+                <label>页面尺寸</label>
+                <select id="native-pagesize">
+                    <option value="A4">A4 (210x297mm)</option>
+                    <option value="A5">A5 (148x210mm)</option>
+                    <option value="Letter">Letter (8.5x11")</option>
+                    <option value="80mm">80mm 收银小票</option>
+                    <option value="58mm">58mm 收银小票</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>内容</label>
+                <textarea id="native-content">这是一份测试打印内容
+================
+订单号：#20260617001
+客户：张三
+金额：¥ 99.00
+日期：2026-06-17
+================
+感谢您的支持！</textarea>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testNativePrint()">🖨️ 立即打印</button>
+                <button class="btn btn-secondary" onclick="testSmartPrint()">🧠 智能打印（自动选）</button>
+            </div>
+
+            <div class="preview-area">
+                <h4>预览效果：</h4>
+                <div class="preview" id="native-preview">点击按钮预览</div>
+            </div>
+        </div>
+
+        <!-- 3. 文本 + 样式 -->
+        <div class="test-panel" id="test-3" style="display:none">
+            <h2>③ 文本 + 样式 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_ADD_TEXT + 12 个 HE_SET_STYLE 样式名完整测试</div>
+
+            <div class="form-row">
+                <label>内容</label>
+                <input type="text" id="t3-content" value="Hello, HePrint! 你好世界 ✨">
+            </div>
+            <div class="form-row">
+                <label>字号 (pt)</label>
+                <input type="number" id="t3-size" value="14" min="6" max="72">
+            </div>
+            <div class="form-row">
+                <label>加粗</label>
+                <select id="t3-bold"><option value="0">否</option><option value="1" selected>是</option></select>
+            </div>
+            <div class="form-row">
+                <label>斜体</label>
+                <select id="t3-italic"><option value="0">否</option><option value="1">是</option></select>
+            </div>
+            <div class="form-row">
+                <label>下划线</label>
+                <select id="t3-underline"><option value="0">否</option><option value="1">是</option></select>
+            </div>
+            <div class="form-row">
+                <label>对齐</label>
+                <select id="t3-align">
+                    <option value="1">左对齐</option>
+                    <option value="2">居中</option>
+                    <option value="3">右对齐</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>颜色</label>
+                <input type="color" id="t3-color" value="#1d4776" style="width:60px">
+            </div>
+            <div class="form-row">
+                <label>旋转</label>
+                <select id="t3-angle">
+                    <option value="0">0°</option>
+                    <option value="90">90°</option>
+                    <option value="180">180°</option>
+                    <option value="270">270°</option>
+                </select>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintStyledText()">🖨️ 打印（自定义样式）</button>
+                <button class="btn btn-secondary" onclick="testBuilderChain()">⛓ 链式 Builder</button>
+            </div>
+
+            <pre class="code" id="t3-code">await HE.init('样式测试');
+await HE.setPage(1, 210, 297, 'A4');
+await HE.addText(150, 100, 1900, 100, 'Hello, HePrint!');
+await HE.setStyle('FontSize', 20);
+await HE.setStyle('Bold', 1);
+await HE.setStyle('Alignment', 2);
+// ... 多样式段落（左/中/右对齐、颜色、字号递进）
+await HE.printSilent();</pre>
+        </div>
+
+        <!-- 4. 打印图片 -->
+        <div class="test-panel" id="test-4" style="display:none">
+            <h2>④ 打印图片 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">从 canvas / 上传文件 / URL 三种方式生成图片，base64 发送至服务</div>
+
+            <h4>方式 1：从 canvas 生成</h4>
+            <canvas id="t4-canvas" width="300" height="100" style="border:1px solid #C9D5DC; background:white"></canvas>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="generateCanvas()">🎨 生成测试图</button>
+                <button class="btn btn-success" onclick="testPrintFromCanvas()">🖨️ 打印此图</button>
+            </div>
+
+            <h4>方式 2：上传文件</h4>
+            <div class="form-row">
+                <label>选择文件</label>
+                <input type="file" id="t4-file" accept="image/png,image/jpeg" onchange="onFileSelect(event)">
+            </div>
+            <div class="form-row">
+                <label>宽度 (mm)</label>
+                <input type="number" id="t4-w" value="80">
+            </div>
+            <div class="form-row">
+                <label>高度 (mm)</label>
+                <input type="number" id="t4-h" value="40">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintFromFile()">🖨️ 打印上传图片</button>
+            </div>
+
+            <h4>方式 3：URL</h4>
+            <div class="form-row">
+                <label>图片 URL</label>
+                <input type="text" id="t4-url" value="https://via.placeholder.com/300x100/1d4776/ffffff?text=HePrint">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintFromUrl()">🖨️ 打印 URL 图片</button>
+            </div>
+        </div>
+
+        <!-- 5. 打印 PDF -->
+        <div class="test-panel" id="test-5" style="display:none">
+            <h2>⑤ 打印 PDF <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_ADD_PDF — 通过 base64 或 URL 发送 PDF，服务端解析后打印</div>
+
+            <div class="form-row">
+                <label>PDF 文件</label>
+                <input type="file" id="t5-pdf" accept="application/pdf">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintPdf()">🖨️ 通过服务打印</button>
+                <button class="btn btn-secondary" onclick="testNativePdf()">🖨️ 浏览器原生打印</button>
+            </div>
+        </div>
+
+        <!-- 6. 打印 HTML -->
+        <div class="test-panel" id="test-6" style="display:none">
+            <h2>⑥ 打印 HTML <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_ADD_HTML — 服务端解析 HTML 内容（支持标签、表格、CSS 文本样式）</div>
+
+            <div class="form-row">
+                <label>HTML 内容</label>
+                <textarea id="t6-html" style="min-height:120px; font-family:Consolas,monospace">
+<div style="color:red; font-weight:bold; font-size:18px">HTML 打印测试</div>
+<p>这是一段 <span style="color:blue">HTML 格式</span> 的内容</p>
+<ul>
+    <li>支持 CSS 样式</li>
+    <li>支持图片、表格</li>
+    <li>支持 JS 渲染</li>
+</ul></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintHtml()">🖨️ 通过服务打印</button>
+                <button class="btn btn-success" onclick="testNativeHtml()">🖨️ 浏览器原生打印</button>
+            </div>
+        </div>
+
+        <!-- 7. 打印表格 -->
+        <div class="test-panel" id="test-7" style="display:none">
+            <h2>⑦ 打印表格 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_ADD_TABLE — 整段 HTML 表格，自动分页</div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintTable()">🖨️ 打印表格</button>
+                <button class="btn btn-secondary" onclick="testNativeTable()">🖨️ 浏览器原生</button>
+            </div>
+        </div>
+
+        <!-- 8. 二维码 条码 -->
+        <div class="test-panel" id="test-8" style="display:none">
+            <h2>⑧ 二维码 / 条码 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_ADD_BARCODE — QRCode / Code128 / EAN13 等</div>
+
+            <div class="form-row">
+                <label>类型</label>
+                <select id="t8-type">
+                    <option value="QRCode">QRCode</option>
+                    <option value="Code128">Code128</option>
+                    <option value="Code39">Code39</option>
+                    <option value="EAN13">EAN13</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>内容</label>
+                <input type="text" id="t8-value" value="https://heprint.example.com/order/20260617001">
+            </div>
+            <div class="form-row">
+                <label>尺寸 (mm)</label>
+                <input type="number" id="t8-size" value="30">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintBarcode()">🖨️ 打印条码</button>
+            </div>
+        </div>
+
+        <!-- 9. 图形 -->
+        <div class="test-panel" id="test-9" style="display:none">
+            <h2>⑨ 图形（线 / 矩形） <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_ADD_LINE / HE_ADD_RECT — 实线/虚线/点线</div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintShapes()">🖨️ 打印图形</button>
+            </div>
+        </div>
+
+        <!-- 10. 订单小票 -->
+        <div class="test-panel" id="test-10" style="display:none">
+            <h2>⑩ 订单小票（80mm 卷筒）<span class="badge badge-service">Service</span></h2>
+            <div class="desc">综合演示：标题 + 商品列表 + 二维码 + 80mm 卷筒纸</div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintReceipt()">🖨️ 通过服务打印</button>
+                <button class="btn btn-secondary" onclick="testNativeReceipt()">🖨️ 浏览器原生</button>
+            </div>
+        </div>
+
+        <!-- 11. A4 报表 -->
+        <div class="test-panel" id="test-11" style="display:none">
+            <h2>⑪ A4 销售报表 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">A4 纸 + 大表格 + 多份</div>
+            <div class="form-row">
+                <label>份数</label>
+                <input type="number" id="t11-copies" value="1" min="1" max="10">
+            </div>
+            <div class="form-row">
+                <label>方向</label>
+                <select id="t11-orient">
+                    <option value="1">纵向 (Portrait)</option>
+                    <option value="2">横向 (Landscape)</option>
+                </select>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintReport()">🖨️ 打印报表</button>
+                <button class="btn btn-secondary" onclick="testNativeReport()">🖨️ 浏览器原生</button>
+            </div>
+        </div>
+
+        <!-- 12. 多页 -->
+        <div class="test-panel" id="test-12" style="display:none">
+            <h2>⑫ 多页文档 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_NEW_PAGE 强制分页</div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testPrintMultipage()">🖨️ 打印多页</button>
+            </div>
+        </div>
+
+        <!-- 13. 批量 -->
+        <div class="test-panel" id="test-13" style="display:none">
+            <h2>⑬ 批量打印 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">循环 5 个独立任务，演示并发能力</div>
+            <div class="form-row">
+                <label>任务数</label>
+                <input type="number" id="t13-count" value="5" min="1" max="20">
+            </div>
+            <div class="form-row">
+                <label>目标打印机</label>
+                <select id="t13-printer"></select>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testBatchPrint()">🖨️ 开始批量</button>
+                <button class="btn btn-danger" onclick="testBatchCancel()">🗑 取消</button>
+            </div>
+        </div>
+
+        <!-- 14. 选择打印机 -->
+        <div class="test-panel" id="test-14" style="display:none">
+            <h2>⑭ 选择打印机 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE_SET_PRINTER - 测试切换到不同打印机</div>
+
+            <h4>所有打印机：</h4>
+            <div id="t14-list"></div>
+
+            <h4>HE_SET_PRINTER 调用：</h4>
+            <div class="form-row">
+                <label>打印机名</label>
+                <input type="text" id="t14-target" placeholder="输入打印机名 或 索引 -1 = 默认">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="testSetPrinter()">✅ 设置打印机</button>
+                <button class="btn btn-success" onclick="testPrintToSelected()">🖨️ 打印测试页到此打印机</button>
+                <button class="btn btn-secondary" onclick="testCheckPrinter()">🔍 检查是否存在</button>
+            </div>
+        </div>
+
+        <!-- 15. 链式 Builder -->
+        <div class="test-panel" id="test-15" style="display:none">
+            <h2>⑮ 链式 Builder API <span class="badge badge-service">Service</span></h2>
+            <div class="desc">HE.build().init().text().style().print() 链式调用，更优雅</div>
+
+            <pre class="code">
+const result = await HE.build('我的订单')
+  .page(3, 80, 0)               // 80mm 卷筒
+  .printer('XP-80C')            // 选打印机
+  .text(20, 10, 280, 30, '订单 #001')
+    .style('FontSize', 14)
+    .style('Bold', 1)
+    .style('Alignment', 2)
+  .barcode(60, 50, 200, 200, 'QRCode', 'https://...')
+  .line(150, 0, 150, 800, 'dashed', 1)
+  .print(true);                  // true=静默
+
+console.log(result);
+            </pre>
+
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="testBuilder()">🖨️ 链式调用示例</button>
+            </div>
+        </div>
+
+        <!-- Console -->
+        <h3 style="margin-top:30px; font-size:11px; color:#6b7b86; text-transform:uppercase; letter-spacing:.5px;">📋 实时日志</h3>
+        <div class="console" id="console">
+            <div class="log-info"><span class="ts">[启动]</span>等待操作...</div>
+        </div>
+    </div>
+</div>
+
+<div id="print-area"></div>
+
+<script>
+// ========================================================================
+// 公共工具
+// ========================================================================
+const consoleEl = document.getElementById('console');
+const MAX_LOG = 200;
+
+function log(msg, type = 'info') {
+    const ts = new Date().toLocaleTimeString();
+    const div = document.createElement('div');
+    div.className = `log-${type}`;
+    div.innerHTML = `<span class="ts">[${ts}]</span>${msg}`;
+    consoleEl.appendChild(div);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+    while (consoleEl.children.length > MAX_LOG) {
+        consoleEl.removeChild(consoleEl.firstChild);
+    }
+}
+function logCmd(method, params) {
+    const div = document.createElement('div');
+    div.className = 'log-cmd';
+    div.innerHTML = `<span class="ts">[${new Date().toLocaleTimeString()}]</span>← <b>${method}</b> ${params ? JSON.stringify(params).slice(0, 80) : ''}`;
+    consoleEl.appendChild(div);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function switchTest(id, el) {
+    document.querySelectorAll('.test-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.test-list li').forEach(li => li.classList.remove('active'));
+    document.getElementById('test-' + id).style.display = 'block';
+    el.classList.add('active');
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+// ========================================================================
+// 服务检测 & 打印机列表
+// ========================================================================
+async function checkStatus() {
+    log('检测 HePrint 服务...');
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    const ver = document.getElementById('service-version');
+    const dp = document.getElementById('default-printer');
+    const pc = document.getElementById('printer-count');
+
+    try {
+        const ok = await HE.isAvailable(true);
+        if (ok) {
+            dot.className = 'dot connected';
+            txt.textContent = '服务已连接';
+            const v = await HE.getInfo('version').catch(() => '-');
+            ver.textContent = v;
+            const printers = await HE.getPrinters().catch(() => []);
+            pc.textContent = printers.length;
+            if (printers.length) {
+                const def = printers.find(p => p.includes('L6270') || p.includes('默认') || p.includes('Default')) || printers[0];
+                dp.textContent = def;
+            }
+            // 填充打印机下拉
+            const sel = document.getElementById('target-printer');
+            sel.innerHTML = '<option value="">-- 使用默认 --</option>' + printers.map(p => `<option value="${p}">${p}</option>`).join('');
+            // 批量测试的下拉
+            const sel2 = document.getElementById('t13-printer');
+            if (sel2) sel2.innerHTML = '<option value="">-- 使用默认 --</option>' + printers.map(p => `<option value="${p}">${p}</option>`).join('');
+            log(`✅ 服务在线：${printers.length} 台打印机`, 'success');
+        } else {
+            dot.className = 'dot warning';
+            txt.textContent = '服务离线（仅原生打印可用）';
+            ver.textContent = '-';
+            dp.textContent = '-';
+            pc.textContent = '0';
+            log('⚠️ HePrint 服务离线', 'warn');
+        }
+    } catch (e) {
+        dot.className = 'dot error';
+        txt.textContent = '检测失败';
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+window.addEventListener('load', () => {
+    log(`HE SDK v${HE.VERSION} 已加载`);
+    log('页面就绪，开始检测服务...');
+    checkStatus();
+});
+
+// ========================================================================
+// 1. 系统检测
+// ========================================================================
+async function testCheckStatus() {
+    logCmd('HE_VERSION', {});
+    const v = await HE.getInfo('version');
+    log(`✅ 服务版本: ${v}`, 'success');
+}
+async function testListPrinters() {
+    const list = await HE.getPrinters();
+    log(`✅ 获取到 ${list.length} 台打印机`, 'success');
+    const el = document.getElementById('printer-list');
+    el.innerHTML = list.map(p => `
+        <div class="printer-card">
+            <div>
+                <span class="name">${escapeHtml(p)}</span>
+                <span class="badge">可用</span>
+            </div>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="document.getElementById('t14-target').value='${escapeHtml(p)}'; switchTest('14', document.querySelectorAll('.test-list li')[14]);">使用</button>
+                <button class="btn btn-warning" onclick="testPrintHelloTo('${escapeHtml(p)}')">测试打印</button>
+            </div>
+        </div>
+    `).join('');
+    list.forEach(p => log(`   - ${p}`));
+}
+async function testGetInfo() {
+    for (const k of ['version', 'serverIp', 'clientIp', 'status', 'printerCount']) {
+        const v = await HE.getInfo(k);
+        log(`   ${k} = ${JSON.stringify(v)}`);
+    }
+}
+async function testReconnect() {
+    HE.disconnect();
+    await HE.connect();
+    log('✅ 重连成功', 'success');
+}
+async function testPrintHelloTo(printer) {
+    try {
+        await HE.init('Hello 测试');
+        await HE.setPrinter(printer);
+        await HE.addText(200, 200, 1800, 200, 'Hello from ' + printer);
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 1);
+        const r = await HE.printSilent();
+        log(`✅ 打印到 ${printer}: taskId=${r.taskId || r.taskId}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 2. 浏览器原生打印
+// ========================================================================
+function testNativePrint() {
+    const content = document.getElementById('native-content').value;
+    const pageSize = document.getElementById('native-pagesize').value;
+    const html = `<pre style="font-family:'Microsoft YaHei'; font-size:14px; white-space:pre-wrap;">${escapeHtml(content)}</pre>`;
+    log('使用浏览器原生打印...');
+    HE.nativePrint(html, { pageSize, title: '原生打印测试' });
+    log('✅ 已弹出原生打印对话框', 'success');
+}
+function testSmartPrint() {
+    const content = document.getElementById('native-content').value;
+    const html = `<pre style="font-family:'Microsoft YaHei'; font-size:14px; white-space:pre-wrap;">${escapeHtml(content)}</pre>`;
+    log('智能打印（自动选 HePrint 服务 或 浏览器原生）...');
+    HE.smartPrint(
+        async () => {
+            await HE.init('智能打印');
+            await HE.addText(200, 200, 1800, 200, content);
+            return await HE.printSilent();
+        },
+        html
+    );
+}
+function testNativePreview() {
+    document.getElementById('native-preview').textContent = document.getElementById('native-content').value;
+}
+
+// ========================================================================
+// 3. 文本 + 样式
+// ========================================================================
+async function testPrintStyledText() {
+    const text = document.getElementById('t3-content').value;
+    const size = +document.getElementById('t3-size').value;
+    const bold = +document.getElementById('t3-bold').value;
+    const italic = +document.getElementById('t3-italic').value;
+    const underline = +document.getElementById('t3-underline').value;
+    const align = +document.getElementById('t3-align').value;
+    const color = document.getElementById('t3-color').value;
+    const angle = +document.getElementById('t3-angle').value;
+
+    try {
+        logCmd('HE_INIT', { taskName: '样式测试' });
+        await HE.init('样式测试');
+        await HE.setPage(1, 210, 297, 'A4');
+
+        // ====== 大标题 ======
+        logCmd('HE_ADD_TEXT', { text });
+        await HE.addText(150, 100, 1900, 100, text);
+        logCmd('HE_SET_STYLE FontSize', size);
+        await HE.setStyle('FontSize', size);
+        logCmd('HE_SET_STYLE Bold', bold);
+        await HE.setStyle('Bold', bold);
+        await HE.setStyle('Alignment', 2);
+        await HE.setStyle('FontColor', color);
+        if (italic) await HE.setStyle('Italic', 1);
+        if (underline) await HE.setStyle('Underline', 1);
+
+        // ====== 分隔线 ======
+        await HE.addLine(280, 100, 280, 2000, 'solid', 2);
+
+        // ====== 左对齐段落 ======
+        await HE.addText(320, 100, 1900, 60, '【左对齐示例】这是一段测试文本，用于验证左对齐效果。');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('Italic', 0);
+        await HE.setStyle('Underline', 0);
+        await HE.setStyle('FontColor', '#000000');
+        await HE.setStyle('Alignment', 1);
+        await HE.addText(400, 100, 1900, 60, 'HePrint 是一款高性能本地打印服务，支持文本、图片、条码等多种内容类型。');
+        await HE.setStyle('FontSize', 12);
+        await HE.addText(470, 100, 1900, 60, '通过 Win32 GDI 原生渲染，确保打印输出与屏幕显示一致，所见即所得。');
+        await HE.addText(540, 100, 1900, 60, '使用 Rust 语言编写，内存安全、零成本抽象、极致性能。');
+
+        // ====== 居中段落 ======
+        await HE.addText(640, 100, 1900, 50, '【居中对齐示例】');
+        await HE.setStyle('FontSize', 13);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(700, 100, 1900, 50, '★ 五星好评 ★');
+        await HE.setStyle('FontSize', 20);
+        await HE.addText(780, 100, 1900, 50, '品质之选，值得信赖');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('FontColor', '#1d4776');
+
+        // ====== 右对齐段落 ======
+        await HE.addText(880, 100, 1900, 50, '【右对齐示例】价格与金额通常右对齐显示');
+        await HE.setStyle('FontSize', 12);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('FontColor', '#000000');
+        await HE.setStyle('Alignment', 3);
+        await HE.addText(940, 100, 1900, 45, '小计: ¥128.00');
+        await HE.setStyle('FontSize', 11);
+        await HE.addText(990, 100, 1900, 45, '优惠: -¥20.00');
+        await HE.addText(1040, 100, 1900, 45, '实付: ¥108.00');
+        await HE.addText(1100, 100, 1900, 45, '会员折扣: VIP-9折');
+
+        // ====== 多种颜色 ======
+        await HE.addLine(1180, 100, 1180, 2000, 'dashed', 1);
+        await HE.addText(1220, 100, 1900, 50, '【颜色测试】');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+        await HE.addText(1300, 100, 1900, 45, '■ 红色文字 - 用于警告和重点标记');
+        await HE.setStyle('FontSize', 12);
+        await HE.setStyle('FontColor', '#f67a89');
+        await HE.addText(1350, 100, 1900, 45, '■ 绿色文字 - 用于成功和确认信息');
+        await HE.setStyle('FontColor', '#89d729');
+        await HE.addText(1400, 100, 1900, 45, '■ 蓝色文字 - 用于链接和标题');
+        await HE.setStyle('FontColor', '#467799');
+        await HE.addText(1450, 100, 1900, 45, '■ 橙色文字 - 用于提示和注意事项');
+        await HE.setStyle('FontColor', '#e5bf26');
+        await HE.addText(1500, 100, 1900, 45, '■ 灰色文字 - 用于次要和辅助说明');
+        await HE.setStyle('FontColor', '#6b7b86');
+
+        // ====== 字号递进 ======
+        await HE.addLine(1580, 100, 1580, 2000, 'dashed', 1);
+        await HE.addText(1620, 100, 1900, 50, '【字号递进测试】');
+        await HE.setStyle('FontColor', '#000000');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 1);
+        const sizes = [8, 10, 12, 14, 16, 20, 24, 28];
+        for (let i = 0; i < sizes.length; i++) {
+            await HE.addText(1690 + i * 60, 100, 1900, 55, `字号 ${sizes[i]}pt - HePrint 打印测试`);
+            await HE.setStyle('FontSize', sizes[i]);
+            await HE.setStyle('Bold', 0);
+        }
+
+        // ====== 样式组合 ======
+        await HE.addLine(2200, 100, 2200, 2000, 'dashed', 1);
+        await HE.addText(2250, 100, 1900, 50, '【样式组合测试】');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(2330, 100, 1900, 50, '加粗 + 斜体 文本样式组合');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Italic', 1);
+        await HE.addText(2400, 100, 1900, 50, '加粗 + 下划线 文本样式组合');
+        await HE.setStyle('Italic', 0);
+        await HE.setStyle('Underline', 1);
+        await HE.addText(2470, 100, 1900, 50, '斜体 + 下划线 文本样式组合');
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('Italic', 1);
+
+        // ====== 旋转文字（仅当用户选择） ======
+        if (angle) {
+            await HE.setStyle('Italic', 0);
+            await HE.setStyle('Underline', 0);
+            await HE.setStyle('Angle', angle);
+            await HE.addText(2600, 300, 800, 200, '旋转文字');
+            await HE.setStyle('FontSize', 18);
+        }
+
+        logCmd('HE_PRINT_SILENT');
+        const r = await HE.printSilent();
+        log(`✅ 打印完成：taskId=${r.taskId}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+async function testBuilderChain() {
+    try {
+        const r = await HE.build('链式测试')
+            .text(200, 200, 1800, 200, 'Builder API Test 链式调用')
+            .style('FontSize', 18).style('Bold', 1).style('Alignment', 2)
+            .print(true);
+        log(`✅ Builder 链式调用成功：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 4. 图片
+// ========================================================================
+function generateCanvas() {
+    const canvas = document.getElementById('t4-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 300, 100);
+    const grad = ctx.createLinearGradient(0, 0, 300, 0);
+    grad.addColorStop(0, '#1d4776');
+    grad.addColorStop(1, '#9aafbd');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 300, 100);
+    ctx.font = 'bold 22px Microsoft YaHei';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.fillText('HePrint Canvas', 150, 60);
+    log('Canvas 图片已生成');
+}
+async function testPrintFromCanvas() {
+    const dataUrl = document.getElementById('t4-canvas').toDataURL('image/png');
+    await printImageBase64(dataUrl, 80, 25);
+}
+function onFileSelect(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    log(`选择文件: ${f.name} (${f.size} bytes)`);
+}
+async function testPrintFromFile() {
+    const f = document.getElementById('t4-file').files[0];
+    if (!f) { log('❌ 请先选择文件', 'error'); return; }
+    const w = +document.getElementById('t4-w').value;
+    const h = +document.getElementById('t4-h').value;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        await printImageBase64(e.target.result, w, h);
+    };
+    reader.readAsDataURL(f);
+}
+async function testPrintFromUrl() {
+    const url = document.getElementById('t4-url').value;
+    try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            await printImageBase64(e.target.result, 80, 25);
+        };
+        reader.readAsDataURL(blob);
+    } catch (e) {
+        log('❌ 跨域图片需要服务端 CORS 或使用 base64: ' + e.message, 'error');
+    }
+}
+async function printImageBase64(dataUrl, wMm, hMm) {
+    try {
+        await HE.init('图片打印');
+        await HE.addImage(200, 200, wMm * 100, hMm * 100, dataUrl);
+        const r = await HE.printSilent();
+        log(`✅ 图片打印：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 5. PDF
+// ========================================================================
+async function testPrintPdf() {
+    const f = document.getElementById('t5-pdf').files[0];
+    if (!f) { log('❌ 请选择 PDF 文件', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            await HE.init('PDF 打印');
+            await HE.addPdf(0, 0, 2100, 2970, e.target.result);
+            const r = await HE.printSilent();
+            log(`✅ PDF 打印：${r.taskId || 'ok'}`, 'success');
+        } catch (err) {
+            log('❌ ' + err.message, 'error');
+        }
+    };
+    reader.readAsDataURL(f);
+}
+function testNativePdf() {
+    const f = document.getElementById('t5-pdf').files[0];
+    if (!f) { log('❌ 请选择 PDF 文件', 'error'); return; }
+    const url = URL.createObjectURL(f);
+    const win = window.open(url);
+    if (!win) log('❌ 浏览器阻止弹窗', 'error');
+    else { setTimeout(() => { win.print(); }, 500); }
+}
+
+// ========================================================================
+// 6. HTML
+// ========================================================================
+async function testPrintHtml() {
+    const html = document.getElementById('t6-html').value;
+    try {
+        await HE.init('HTML 打印');
+        await HE.addHtml(200, 200, 1800, 1800, html);
+        const r = await HE.printSilent();
+        log(`✅ HTML 打印：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('⚠️ v1 不支持 HE_ADD_HTML，已自动降级到浏览器原生打印', 'warn');
+        HE.nativePrint(html, { title: 'HTML 打印测试' });
+    }
+}
+function testNativeHtml() {
+    HE.nativePrint(document.getElementById('t6-html').value, { title: 'HTML 打印' });
+}
+
+// ========================================================================
+// 7. 表格
+// ========================================================================
+async function testPrintTable() {
+    const rows = [
+        ['产品 A', '120', '¥299', '¥35,880'],
+        ['产品 B', '85', '¥499', '¥42,415'],
+        ['产品 C', '60', '¥899', '¥53,940'],
+        ['产品 D', '230', '¥99', '¥22,770'],
+    ];
+    const html = '<table border="1" style="border-collapse:collapse; width:100%; font-size:12px">' +
+        '<thead><tr style="background:#9BAFBC;color:white"><th>产品</th><th>销量</th><th>单价</th><th>小计</th></tr></thead>' +
+        '<tbody>' + rows.map(r => `<tr><td style="padding:4px">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('') + '</tbody></table>';
+    try {
+        await HE.init('表格打印');
+        await HE.addTable(200, 100, 1800, 1500, html);
+        const r = await HE.printSilent();
+        log(`✅ 表格打印：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+function testNativeTable() {
+    const rows = [
+        ['产品 A', '120', '¥299', '¥35,880'],
+        ['产品 B', '85', '¥499', '¥42,415'],
+        ['产品 C', '60', '¥899', '¥53,940'],
+        ['产品 D', '230', '¥99', '¥22,770'],
+    ];
+    const html = `<table border="1" style="width:100%;border-collapse:collapse"><thead><tr><th>产品</th><th>销量</th><th>单价</th><th>小计</th></tr></thead><tbody>${
+        rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')
+    }</tbody></table>`;
+    HE.nativePrint(html, { title: '表格打印' });
+}
+
+// ========================================================================
+// 8. 条码
+// ========================================================================
+async function testPrintBarcode() {
+    const type = document.getElementById('t8-type').value;
+    const value = document.getElementById('t8-value').value;
+    const size = +document.getElementById('t8-size').value;
+    try {
+        await HE.init('条码打印');
+        await HE.setPage(1, 210, 297, 'A4');
+
+        // ====== 标题 ======
+        await HE.addText(100, 200, 1700, 60, '条码 / 二维码综合测试');
+        await HE.setStyle('FontSize', 20);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(180, 200, 1700, 40, '支持 QRCode / Code128 / Code39 / EAN13 等多种条码类型');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addLine(250, 200, 250, 1900, 'solid', 2);
+
+        // ====== QRCode 测试 ======
+        await HE.addText(300, 200, 1700, 50, '1. QRCode 二维码');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+        await HE.addBarcode(380, 200, 350, 350, 'QRCode', 'https://heprint.example.com/order/20260617');
+        await HE.addText(390, 600, 500, 40, '内容: https://heprint.example.com/order/20260617');
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(430, 600, 500, 40, '用途: 订单跟踪、支付链接、产品溯源');
+        await HE.addText(470, 600, 500, 40, '尺寸: 35mm × 35mm');
+
+        // ====== QRCode 小尺寸 ======
+        await HE.addBarcode(380, 1250, 200, 200, 'QRCode', 'https://heprint.example.com');
+        await HE.addText(390, 1250, 500, 40, '小尺寸 QRCode（20mm × 20mm）');
+        await HE.setStyle('FontSize', 9);
+
+        // ====== QRCode 大尺寸 ======
+        await HE.addBarcode(380, 1500, 500, 500, 'QRCode', 'https://heprint.example.com/receipt/demo');
+        await HE.addText(900, 1500, 500, 40, '大尺寸 QRCode（50mm × 50mm）');
+
+        // ====== 分隔线 ======
+        await HE.addLine(1000, 200, 1000, 1900, 'dashed', 1);
+
+        // ====== Code128 条码 ======
+        await HE.addText(1050, 200, 1700, 50, '2. Code128 条码');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.addBarcode(1130, 200, 500, 250, 'Code128', 'HEPRINT-2026-001-A4');
+        await HE.addText(1140, 200, 800, 40, '内容: HEPRINT-2026-001-A4');
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1180, 200, 800, 40, '用途: 物流追踪、库存编码、单据编号');
+        await HE.addText(1220, 200, 800, 40, '尺寸: 50mm × 25mm（标准一维条码比例）');
+
+        await HE.addBarcode(1130, 1050, 500, 250, 'Code128', 'ORD-20260617001');
+        await HE.addText(1140, 1050, 800, 40, '订单编号条码: ORD-20260617001');
+
+        // ====== 分隔线 ======
+        await HE.addLine(1500, 200, 1500, 1900, 'dashed', 1);
+
+        // ====== Code39 条码 ======
+        await HE.addText(1550, 200, 1700, 50, '3. Code39 条码');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.addBarcode(1630, 200, 500, 250, 'Code39', 'ABC-12345');
+        await HE.addText(1640, 200, 800, 40, '内容: ABC-12345');
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1680, 200, 800, 40, '用途: 工业制造、汽车行业、军工编码');
+        await HE.addText(1720, 200, 800, 40, '特点: 支持字母+数字，广泛用于非零售场景');
+
+        // ====== 分隔线 ======
+        await HE.addLine(1850, 200, 1850, 1900, 'dashed', 1);
+
+        // ====== EAN13 条码 ======
+        await HE.addText(1900, 200, 1700, 50, '4. EAN-13 商品条码');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.addBarcode(1980, 200, 500, 250, 'EAN13', '6901234567890');
+        await HE.addText(1990, 200, 800, 40, '内容: 6901234567890');
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(2030, 200, 800, 40, '用途: 零售商品、超市扫码、价格标签');
+        await HE.addText(2070, 200, 800, 40, '标准: 国际通用 13 位商品编码（含校验位）');
+
+        // ====== 用户自定义条码（使用表单值） ======
+        await HE.addLine(2180, 200, 2180, 1900, 'solid', 2);
+        await HE.addText(2230, 200, 1700, 50, '5. 用户自定义: ' + type);
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 1);
+        await HE.addBarcode(2320, 200, size * 100, size * 100, type, value);
+        await HE.addText(2330, 200, 1000, 40, '类型: ' + type + '  内容: ' + value + '  尺寸: ' + size + 'mm');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Bold', 0);
+
+        // ====== 页脚 ======
+        await HE.addLine(2500, 200, 2500, 1900, 'solid', 1);
+        await HE.addText(2520, 200, 1700, 40, 'HePrint 条码测试页 | 支持多种标准条码格式 | 打印时间: ' + new Date().toLocaleString());
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Alignment', 2);
+
+        const r = await HE.printSilent();
+        log(`✅ ${type} 打印：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 9. 图形
+// ========================================================================
+async function testPrintShapes() {
+    try {
+        await HE.init('图形测试');
+        await HE.setPage(1, 210, 297, 'A4');
+
+        // ====== 标题 ======
+        await HE.addText(100, 200, 1700, 60, '图形元素综合测试');
+        await HE.setStyle('FontSize', 20);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 实线测试 ======
+        await HE.addText(200, 200, 1700, 40, '■ 实线 (Solid) — 宽度 1/2/3');
+        await HE.setStyle('FontSize', 13);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+        await HE.addLine(260, 200, 260, 1900, 'solid', 1);
+        await HE.addLine(290, 200, 290, 1900, 'solid', 2);
+        await HE.addLine(320, 200, 320, 1900, 'solid', 3);
+
+        // ====== 虚线测试 ======
+        await HE.addText(370, 200, 1700, 40, '■ 虚线 (Dashed) — 宽度 1/2');
+        await HE.setStyle('FontSize', 13);
+        await HE.addLine(430, 200, 430, 1900, 'dashed', 1);
+        await HE.addLine(460, 200, 460, 1900, 'dashed', 2);
+
+        // ====== 点线测试 ======
+        await HE.addText(510, 200, 1700, 40, '■ 点线 (Dotted) — 宽度 1/2');
+        await HE.setStyle('FontSize', 13);
+        await HE.addLine(570, 200, 570, 1900, 'dotted', 1);
+        await HE.addLine(600, 200, 600, 1900, 'dotted', 2);
+
+        // ====== 水平线测试 ======
+        await HE.addText(660, 200, 1700, 40, '■ 水平线测试');
+        await HE.setStyle('FontSize', 13);
+        await HE.addLine(720, 200, 720, 1900, 'solid', 1);
+        await HE.addLine(760, 200, 760, 1900, 'dashed', 1);
+        await HE.addLine(800, 200, 800, 1900, 'dotted', 1);
+        await HE.addLine(840, 200, 840, 1900, 'solid', 2);
+        await HE.addLine(880, 200, 880, 1900, 'solid', 3);
+
+        // ====== 矩形测试 ======
+        await HE.addText(940, 200, 1700, 40, '■ 矩形 (Rectangle) 测试');
+        await HE.setStyle('FontSize', 13);
+
+        // 小矩形组
+        await HE.addRect(1010, 200, 300, 200, 'solid', 1);
+        await HE.addText(1030, 220, 260, 50, '实线矩形');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Alignment', 2);
+
+        await HE.addRect(1010, 550, 300, 200, 'solid', 2);
+        await HE.addText(1030, 570, 260, 50, '粗边矩形');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Alignment', 2);
+
+        await HE.addRect(1010, 900, 300, 200, 'dashed', 1);
+        await HE.addText(1030, 920, 260, 50, '虚线矩形');
+        await HE.setStyle('FontSize', 10);
+
+        await HE.addRect(1010, 1250, 300, 200, 'dotted', 2);
+        await HE.addText(1030, 1270, 260, 50, '点线矩形');
+        await HE.setStyle('FontSize', 10);
+
+        // 大矩形
+        await HE.addRect(1250, 200, 800, 700, 'solid', 2);
+        await HE.addText(1270, 220, 760, 50, '大矩形内部区域');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(1330, 220, 760, 40, '用于放置内容、创建边框、划分区域');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1380, 220, 760, 40, '矩形是打印布局中最常用的图形元素');
+        await HE.addText(1430, 220, 760, 40, '可用于表格边框、内容分区、重点框选');
+
+        // 嵌套矩形
+        await HE.addRect(2000, 200, 900, 700, 'solid', 2);
+        await HE.addRect(2020, 220, 860, 660, 'dashed', 1);
+        await HE.addRect(2040, 240, 820, 620, 'dotted', 1);
+        await HE.addText(2100, 300, 800, 50, '嵌套矩形效果');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 线 + 文字组合：模拟表格 ======
+        await HE.addText(2200, 200, 1700, 40, '■ 线 + 文字组合（模拟表格）');
+        await HE.setStyle('FontSize', 13);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+
+        // 表格线
+        const tableTop = 2270;
+        await HE.addLine(tableTop, 200, tableTop, 1900, 'solid', 2);
+        // 表头
+        await HE.addText(tableTop + 20, 200, 400, 45, '名称');
+        await HE.setStyle('FontSize', 11);
+        await HE.addText(tableTop + 20, 650, 400, 45, '数量');
+        await HE.addText(tableTop + 20, 1100, 400, 45, '单价');
+        await HE.addText(tableTop + 20, 1500, 400, 45, '小计');
+        await HE.addLine(tableTop + 70, 200, tableTop + 70, 1900, 'solid', 1);
+
+        // 数据行
+        const tblData = [
+            ['产品 A', '100', '¥99.00', '¥9,900.00'],
+            ['产品 B', '200', '¥49.00', '¥9,800.00'],
+            ['产品 C', '50', '¥199.00', '¥9,950.00'],
+            ['产品 D', '150', '¥69.00', '¥10,350.00'],
+            ['产品 E', '80', '¥129.00', '¥10,320.00'],
+        ];
+        for (let i = 0; i < tblData.length; i++) {
+            const y = tableTop + 80 + i * 50;
+            await HE.addText(y, 200, 400, 45, tblData[i][0]);
+            await HE.addText(y, 650, 400, 45, tblData[i][1]);
+            await HE.setStyle('Alignment', 3);
+            await HE.addText(y, 1100, 400, 45, tblData[i][2]);
+            await HE.addText(y, 1500, 400, 45, tblData[i][3]);
+            await HE.setStyle('Alignment', 1);
+        }
+
+        // 合计
+        const tableBottom = tableTop + 80 + tblData.length * 50;
+        await HE.addLine(tableBottom, 200, tableBottom, 1900, 'solid', 2);
+        await HE.addText(tableBottom + 20, 1100, 400, 45, '合计');
+        await HE.setStyle('Bold', 1);
+        await HE.addText(tableBottom + 20, 1500, 400, 45, '¥50,320.00');
+        await HE.setStyle('FontSize', 12);
+
+        // ====== 页脚边框 ======
+        await HE.addRect(2650, 100, 1900, 2700, 'solid', 2);
+        await HE.addText(2680, 600, 1500, 35, 'HePrint 图形测试页 | 打印时间: ' + new Date().toLocaleString());
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('Alignment', 2);
+
+        const r = await HE.printSilent();
+        log(`✅ 图形打印：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 10. 订单小票
+// ========================================================================
+async function testPrintReceipt() {
+    try {
+        await HE.init('订单小票');
+        await HE.setPage(3, 80, 0, '');   // 80mm 卷筒 (width=800 0.1mm)
+
+        // ====== 店铺标题 ======
+        await HE.addText(50, 20, 760, 80, '◆ 美味餐厅 ◆');
+        await HE.setStyle('FontSize', 20);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 副标题 ======
+        await HE.addText(140, 20, 760, 40, '正宗中式餐饮 · 营业中');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 订单信息 ======
+        await HE.addText(200, 20, 760, 40, '订单号: #20260617-001');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Alignment', 1);
+        await HE.addText(240, 20, 760, 40, '时间: ' + new Date().toLocaleString());
+        await HE.addText(280, 20, 760, 40, '收银员: 李四 | 桌号: A12 | 人数: 4');
+        await HE.addText(320, 20, 760, 40, '支付方式: 微信支付 | 会员卡: VIP-8866');
+
+        // ====== 分隔线 ======
+        await HE.addLine(370, 20, 370, 780, 'dashed', 1);
+
+        // ====== 商品列表表头 ======
+        await HE.addText(390, 20, 350, 35, '商品');
+        await HE.addText(390, 380, 80, 35, '数量');
+        await HE.addText(390, 500, 120, 35, '单价');
+        await HE.addText(390, 660, 120, 35, '小计');
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('FontSize', 10);
+        await HE.addLine(430, 20, 430, 780, 'solid', 1);
+
+        // ====== 商品列表 ======
+        const items = [
+            ['北京烤鸭(半只)', '1', '¥128.00', '¥128.00'],
+            ['宫保鸡丁(微辣)', '2', '¥48.00', '¥96.00'],
+            ['麻婆豆腐(中辣)', '1', '¥32.00', '¥32.00'],
+            ['红烧肉(大份)', '1', '¥58.00', '¥58.00'],
+            ['清蒸鲈鱼(鲜活)', '1', '¥88.00', '¥88.00'],
+            ['蒜蓉西兰花', '1', '¥22.00', '¥22.00'],
+            ['凉拌黄瓜', '1', '¥16.00', '¥16.00'],
+            ['可口可乐 330ml', '3', '¥5.00', '¥15.00'],
+            ['王老吉凉茶', '2', '¥6.00', '¥12.00'],
+            ['米饭(大碗)', '4', '¥3.00', '¥12.00'],
+            ['餐巾纸', '2', '¥1.00', '¥2.00'],
+        ];
+        for (let i = 0; i < items.length; i++) {
+            const y = 440 + i * 38;
+            await HE.addText(y, 20, 350, 35, items[i][0]);
+            await HE.addText(y, 380, 80, 35, items[i][1]);
+            await HE.setStyle('Alignment', 3);
+            await HE.addText(y, 500, 120, 35, items[i][2]);
+            await HE.addText(y, 660, 120, 35, items[i][3]);
+            await HE.setStyle('Alignment', 1);
+            await HE.setStyle('FontSize', 10);
+        }
+
+        // ====== 分隔线 ======
+        await HE.addLine(870, 20, 870, 780, 'dashed', 1);
+
+        // ====== 金额汇总 ======
+        await HE.addText(890, 500, 260, 40, '商品总计: ¥481.00');
+        await HE.setStyle('FontSize', 11);
+        await HE.addText(930, 500, 260, 40, '包装费: ¥5.00');
+        await HE.addText(970, 500, 260, 40, 'VIP 折扣: -¥30.00');
+        await HE.setStyle('FontColor', '#e5bf26');
+        await HE.addText(1020, 500, 260, 40, '优惠券: -¥20.00');
+        await HE.addLine(1060, 20, 1060, 780, 'solid', 2);
+        await HE.addText(1080, 20, 760, 50, '实付金额: ¥436.00');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('FontColor', '#f67a89');
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 会员信息 ======
+        await HE.addText(1150, 20, 760, 40, '会员卡: VIP-8866  积分: +436  当前积分: 12,880');
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('FontColor', '#000000');
+        await HE.setStyle('Alignment', 1);
+
+        // ====== 分隔线 ======
+        await HE.addLine(1200, 20, 1200, 780, 'dashed', 1);
+
+        // ====== 二维码 ======
+        await HE.addText(1220, 20, 760, 30, '扫码查看电子发票 & 订单详情');
+        await HE.setStyle('FontSize', 9);
+        await HE.setStyle('Alignment', 2);
+        await HE.addBarcode(1260, 200, 300, 300, 'QRCode', 'https://heprint.example.com/order/20260617001');
+
+        // ====== 分隔线 ======
+        await HE.addLine(1580, 20, 1580, 780, 'dashed', 1);
+
+        // ====== 底部信息 ======
+        await HE.addText(1600, 20, 760, 40, '感谢光临，欢迎再次惠顾！');
+        await HE.setStyle('FontSize', 12);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(1650, 20, 760, 35, '美味餐厅 · 品质生活');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1700, 20, 760, 35, '客服电话: 400-888-9999');
+        await HE.addText(1730, 20, 760, 35, '外卖热线: 400-888-8888');
+        await HE.addText(1760, 20, 760, 35, '地址: 北京市朝阳区美食街 88 号');
+        await HE.addText(1790, 20, 760, 35, '营业时间: 10:00 - 22:00 全年无休');
+        await HE.addText(1830, 20, 760, 35, '微信公众号: 美味餐厅official');
+        await HE.addText(1870, 20, 760, 35, '--------------------------------');
+        await HE.addText(1900, 20, 760, 35, '税号: 91110105MA01XXXXX');
+        await HE.addText(1930, 20, 760, 35, '本票据由 HePrint 系统自动打印');
+
+        const r = await HE.printSilent();
+        log(`✅ 小票打印：${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+function testNativeReceipt() {
+    HE.nativePrint(`
+        <div style="width:300px;font-family:'Microsoft YaHei';padding:10px">
+            <h2 style="text-align:center;margin-bottom:8px">◆ 美味餐厅 ◆</h2>
+            <p style="font-size:12px;margin-bottom:4px">订单号: #20260617-001</p>
+            <p style="font-size:12px;margin-bottom:4px">时间: ${new Date().toLocaleString()}</p>
+            <p style="font-size:12px;margin-bottom:8px">收银员: 李四 | 桌号: A12</p>
+            <hr style="border-style:dashed;margin:8px 0">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+                <tr style="font-weight:bold;border-bottom:1px solid #ccc"><td>商品</td><td style="text-align:center">数量</td><td style="text-align:right">单价</td></tr>
+                <tr><td>北京烤鸭</td><td style="text-align:center">1</td><td style="text-align:right">¥128.00</td></tr>
+                <tr><td>宫保鸡丁</td><td style="text-align:center">2</td><td style="text-align:right">¥48.00</td></tr>
+                <tr><td>麻婆豆腐</td><td style="text-align:center">1</td><td style="text-align:right">¥32.00</td></tr>
+                <tr><td>红烧肉</td><td style="text-align:center">1</td><td style="text-align:right">¥58.00</td></tr>
+                <tr><td>清蒸鲈鱼</td><td style="text-align:center">1</td><td style="text-align:right">¥88.00</td></tr>
+                <tr><td>可口可乐</td><td style="text-align:center">3</td><td style="text-align:right">¥5.00</td></tr>
+                <tr><td>米饭</td><td style="text-align:center">3</td><td style="text-align:right">¥3.00</td></tr>
+            </table>
+            <hr style="border-style:dashed;margin:8px 0">
+            <p style="font-size:12px">小计: ¥376.00</p>
+            <p style="font-size:12px">优惠: -¥20.00</p>
+            <p style="font-size:14px;font-weight:bold;text-align:right">实付: ¥356.00</p>
+            <p style="text-align:center;font-size:11px;margin-top:12px">感谢光临，欢迎再次惠顾！</p>
+            <p style="text-align:center;font-size:10px">电话: 400-888-9999</p>
+            <p style="text-align:center;font-size:10px">地址: 北京市朝阳区美食街 88 号</p>
+        </div>
+    `, { pageSize: '80mm', title: '订单小票' });
+}
+
+// ========================================================================
+// 11. A4 报表
+// ========================================================================
+async function testPrintReport() {
+    const copies = +document.getElementById('t11-copies').value;
+    const orient = +document.getElementById('t11-orient').value;
+    try {
+        await HE.init('A4 报表');
+        await HE.setPage(orient, 210, 297, 'A4');
+        await HE.setCopies(copies);
+
+        // ====== 公司标题 ======
+        await HE.addText(100, 200, 1700, 60, '科技有限公司');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 报表标题 ======
+        await HE.addText(170, 100, 1900, 80, '2026 年 6 月销售报表');
+        await HE.setStyle('FontSize', 24);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 副标题 ======
+        await HE.addText(270, 100, 1900, 40, '部门：销售一部 | 制表人：李四 | 日期：2026-06-17');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 汇总卡片 ======
+        await HE.addText(330, 100, 470, 80, '总销售额\n¥735,345');
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(330, 670, 470, 80, '订单总数\n1,655 笔');
+        await HE.setStyle('FontSize', 14);
+        await HE.addText(330, 1240, 470, 80, '同比增长\n+15.3%');
+        await HE.setStyle('FontSize', 14);
+        await HE.addText(330, 1810, 470, 80, '完成率\n108.6%');
+        await HE.setStyle('FontSize', 14);
+
+        // ====== 汇总框线 ======
+        await HE.addRect(320, 90, 2200, 80, 'solid', 1);
+        await HE.addRect(320, 660, 2200, 80, 'solid', 1);
+        await HE.addRect(320, 1230, 2200, 80, 'solid', 1);
+        await HE.addRect(320, 1800, 2200, 80, 'solid', 1);
+
+        // ====== 明细表标题 ======
+        await HE.addText(450, 100, 1700, 50, '销售明细表');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+
+        // ====== 表头 ======
+        await HE.addLine(510, 100, 510, 1950, 'solid', 2);
+        const cols = [['序号', 100], ['产品名称', 200], ['分类', 700], ['销量', 1000], ['单价', 1300], ['小计', 1650]];
+        for (const [name, x] of cols) {
+            await HE.addText(530, x, 350, 45, name);
+            await HE.setStyle('Bold', 1);
+            await HE.setStyle('FontSize', 11);
+        }
+        await HE.addLine(580, 100, 580, 1950, 'solid', 1);
+
+        // ====== 数据行 (18 rows) ======
+        const rows = [
+            ['1', '笔记本电脑 Pro', '电脑', '45', '¥5,999', '¥269,955'],
+            ['2', '无线鼠标 静音款', '外设', '320', '¥99', '¥31,680'],
+            ['3', '机械键盘 RGB', '外设', '180', '¥299', '¥53,820'],
+            ['4', '显示器 27寸 4K', '显示器', '65', '¥1,899', '¥123,435'],
+            ['5', 'USB-C 扩展坞 12合1', '配件', '210', '¥199', '¥41,790'],
+            ['6', '移动硬盘 1TB SSD', '存储', '95', '¥399', '¥37,905'],
+            ['7', '耳机 主动降噪', '音频', '150', '¥599', '¥89,850'],
+            ['8', '摄像头 4K 高清', '视频', '80', '¥349', '¥27,920'],
+            ['9', '音箱 蓝牙便携', '音频', '110', '¥249', '¥27,390'],
+            ['10', '充电器 65W GaN', '配件', '400', '¥79', '¥31,600'],
+            ['11', '笔记本支架 铝合金', '配件', '200', '¥129', '¥25,800'],
+            ['12', '鼠标垫 超大桌垫', '外设', '350', '¥49', '¥17,150'],
+            ['13', '数据线 USB-C 编织', '配件', '500', '¥19', '¥9,500'],
+            ['14', '屏幕挂灯 护眼', '照明', '120', '¥199', '¥23,880'],
+            ['15', '无线充电板 15W', '配件', '280', '¥59', '¥16,520'],
+            ['16', '笔记本包 防水', '箱包', '90', '¥159', '¥14,310'],
+            ['17', 'U盘 64GB 高速', '存储', '450', '¥35', '¥15,750'],
+            ['18', 'Type-C 转接头', '配件', '600', '¥15', '¥9,000'],
+        ];
+        for (let i = 0; i < rows.length; i++) {
+            const y = 590 + i * 50;
+            await HE.addText(y, 100, 350, 45, rows[i][0]);
+            await HE.addText(y, 200, 450, 45, rows[i][1]);
+            await HE.addText(y, 700, 250, 45, rows[i][2]);
+            await HE.addText(y, 1000, 250, 45, rows[i][3]);
+            await HE.setStyle('Alignment', 3);
+            await HE.addText(y, 1300, 300, 45, rows[i][4]);
+            await HE.addText(y, 1650, 300, 45, rows[i][5]);
+            await HE.setStyle('Alignment', 1);
+            await HE.setStyle('FontSize', 10);
+        }
+
+        // ====== 合计行 ======
+        const totalY = 590 + rows.length * 50;
+        await HE.addLine(totalY, 100, totalY, 1950, 'solid', 2);
+        await HE.addText(totalY + 20, 100, 400, 45, '合计（18项）');
+        await HE.setStyle('Bold', 1);
+        await HE.addText(totalY + 20, 1000, 250, 45, '3,995');
+        await HE.addText(totalY + 20, 1650, 300, 45, '¥735,345');
+        await HE.setStyle('FontSize', 12);
+
+        // ====== 占比分析 ======
+        const analysisY = totalY + 90;
+        await HE.addText(analysisY, 100, 1900, 50, '■ 销售占比分析（TOP 5）');
+        await HE.setStyle('FontSize', 13);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(analysisY + 60, 100, 1900, 40, '笔记本电脑 36.7%  |  显示器 16.8%  |  耳机 12.2%  |  机械键盘 7.3%  |  移动硬盘 5.2%');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Bold', 0);
+
+        // ====== 月度趋势 ======
+        const trendY = analysisY + 130;
+        await HE.addText(trendY, 100, 1900, 50, '■ 月度销售趋势');
+        await HE.setStyle('FontSize', 13);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(trendY + 60, 100, 1900, 40, '1月: ¥52万 → 2月: ¥48万 → 3月: ¥61万 → 4月: ¥58万 → 5月: ¥64万 → 6月: ¥73.5万');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Bold', 0);
+
+        // ====== 备注 ======
+        const noteY = trendY + 130;
+        await HE.addLine(noteY, 100, noteY, 1950, 'dashed', 1);
+        await HE.addText(noteY + 20, 100, 1900, 50, '备注：本月销售额同比增长 15.3%，超额完成季度目标。笔记本电脑与显示器');
+        await HE.addText(noteY + 70, 100, 1900, 50, '为明星产品，建议加大库存储备。充电器与数据线等低价配件销量稳定，利润率');
+        await HE.addText(noteY + 120, 100, 1900, 50, '良好，可持续推广。下月重点：暑期促销活动，预计增长 10%-15%。');
+        await HE.setStyle('FontSize', 10);
+
+        // ====== 签字栏 ======
+        await HE.addLine(2800, 100, 2800, 1950, 'solid', 1);
+        await HE.addText(2830, 100, 800, 40, '制表人签字：__________');
+        await HE.addText(2830, 500, 800, 40, '审核人签字：__________');
+        await HE.addText(2830, 900, 800, 40, '部门经理签字：__________');
+        await HE.addText(2830, 1400, 800, 40, '总经理签字：__________');
+        await HE.setStyle('FontSize', 11);
+
+        // ====== 页脚 ======
+        await HE.addText(2900, 100, 1900, 35, '本报表由 HePrint 系统自动生成 | 打印时间: ' + new Date().toLocaleString());
+        await HE.setStyle('FontSize', 8);
+        await HE.setStyle('Alignment', 2);
+
+        const r = await HE.printSilent();
+        log(`✅ 报表打印：${r.pages || 1} 页 × ${copies} 份`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+function testNativeReport() {
+    const rows = [
+        ['笔记本电脑', '45', '¥5,999', '¥269,955'],
+        ['无线鼠标', '320', '¥99', '¥31,680'],
+        ['机械键盘', '180', '¥299', '¥53,820'],
+        ['显示器 27寸', '65', '¥1,899', '¥123,435'],
+        ['USB-C 扩展坞', '210', '¥199', '¥41,790'],
+        ['移动硬盘 1TB', '95', '¥399', '¥37,905'],
+        ['耳机降噪款', '150', '¥599', '¥89,850'],
+        ['摄像头 4K', '80', '¥349', '¥27,920'],
+        ['音箱蓝牙款', '110', '¥249', '¥27,390'],
+        ['充电器 65W', '400', '¥79', '¥31,600'],
+    ];
+    const tbody = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('');
+    HE.nativePrint(`
+        <h1 style="text-align:center">2026 年 6 月销售报表</h1>
+        <p style="text-align:center;color:#666">部门：销售一部 | 制表人：李四 | 日期：2026-06-17</p>
+        <table border="1" style="width:100%;border-collapse:collapse;margin-top:20px">
+            <thead><tr style="background:#1d4776;color:white"><th>产品</th><th>销量</th><th>单价</th><th>小计</th></tr></thead>
+            <tbody>${tbody}<tr style="font-weight:bold;background:#f0f0f0"><td colspan="3" style="text-align:right"><b>合计</b></td><td><b>¥735,345</b></td></tr></tbody>
+        </table>
+        <p style="margin-top:16px;font-size:12px;color:#666">备注：本月销售额同比增长 15.3%，超额完成季度目标。</p>
+        <div style="display:flex;justify-content:space-between;margin-top:40px;font-size:12px">
+            <span>制表人签字：__________</span>
+            <span>部门经理签字：__________</span>
+        </div>
+    `, { pageSize: 'A4' });
+}
+
+// ========================================================================
+// 12. 多页
+// ========================================================================
+async function testPrintMultipage() {
+    try {
+        await HE.init('多页文档');
+        await HE.setPage(1, 210, 297, 'A4');
+
+        // ====== 第1页：封面 ======
+        await HE.addLine(400, 300, 400, 1800, 'solid', 3);
+        await HE.addText(800, 300, 1500, 100, 'HePrint');
+        await HE.setStyle('FontSize', 48);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(1000, 300, 1500, 60, '产品说明书');
+        await HE.setStyle('FontSize', 28);
+        await HE.addLine(1100, 600, 1100, 1500, 'solid', 2);
+        await HE.addText(1200, 300, 1500, 50, '版本 v1.0.0');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1300, 300, 1500, 50, '桌面端本地打印服务');
+        await HE.setStyle('FontSize', 14);
+        await HE.addText(1450, 300, 1500, 40, 'Rust + Axum + Win32 GDI');
+        await HE.addLine(1550, 300, 1550, 1800, 'solid', 1);
+        await HE.addText(1650, 300, 1500, 40, '编写：HePrint 研发团队');
+        await HE.setStyle('FontSize', 12);
+        await HE.addText(1700, 300, 1500, 40, '日期：2026 年 6 月 17 日');
+        await HE.addText(1750, 300, 1500, 40, '文档分类：技术文档 / 用户手册');
+        await HE.addText(1850, 300, 1500, 40, '密级：内部公开');
+        await HE.addLine(2700, 300, 2700, 1800, 'solid', 3);
+
+        await HE.newPage();
+
+        // ====== 第2页：目录 ======
+        await HE.addText(150, 200, 1700, 80, '目录');
+        await HE.setStyle('FontSize', 24);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+        await HE.addLine(260, 200, 260, 1900, 'solid', 2);
+        await HE.addText(300, 200, 1500, 50, '第一章  产品概述 ....................................... 3');
+        await HE.setStyle('FontSize', 13);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(360, 200, 1500, 50, '    1.1  产品简介');
+        await HE.setStyle('FontSize', 11);
+        await HE.addText(410, 200, 1500, 50, '    1.2  核心特性');
+        await HE.addText(460, 200, 1500, 50, '    1.3  技术架构');
+        await HE.addText(530, 200, 1500, 50, '第二章  安装部署 ....................................... 4');
+        await HE.setStyle('FontSize', 13);
+        await HE.addText(590, 200, 1500, 50, '    2.1  系统要求');
+        await HE.setStyle('FontSize', 11);
+        await HE.addText(640, 200, 1500, 50, '    2.2  安装步骤');
+        await HE.addText(690, 200, 1500, 50, '    2.3  服务管理');
+        await HE.addText(760, 200, 1500, 50, '第三章  API 参考 ....................................... 5');
+        await HE.setStyle('FontSize', 13);
+        await HE.addText(820, 200, 1500, 50, '    3.1  HE_INIT 初始化');
+        await HE.setStyle('FontSize', 11);
+        await HE.addText(870, 200, 1500, 50, '    3.2  HE_ADD_TEXT 添加文本');
+        await HE.addText(920, 200, 1500, 50, '    3.3  HE_ADD_IMAGE 添加图片');
+        await HE.addText(970, 200, 1500, 50, '    3.4  HE_ADD_BARCODE 添加条码');
+        await HE.addText(1040, 200, 1500, 50, '第四章  常见问题 ....................................... 7');
+        await HE.setStyle('FontSize', 13);
+        await HE.addText(1100, 200, 1500, 50, '第五章  更新日志 ....................................... 8');
+        await HE.addText(1170, 200, 1500, 50, '附录 A  命令速查表 .................................. 9');
+        await HE.addLine(1230, 200, 1230, 1900, 'dashed', 1);
+
+        await HE.newPage();
+
+        // ====== 第3页：产品概述（内容铺满） ======
+        await HE.addText(150, 200, 1700, 80, '第一章  产品概述');
+        await HE.setStyle('FontSize', 22);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+        await HE.addLine(260, 200, 260, 1900, 'solid', 2);
+
+        await HE.addText(290, 200, 1700, 50, '1.1  产品简介');
+        await HE.setStyle('FontSize', 15);
+        await HE.addText(360, 200, 1700, 50, 'HePrint 是一款替代 C-Lodop 的极简本地打印服务，专为 B/S 架构的');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(410, 200, 1700, 50, '业务系统设计。它运行在 Windows 桌面端，通过 HTTP REST API 与');
+        await HE.addText(460, 200, 1700, 50, 'WebSocket JSON-RPC 2.0 协议，为前端 Web 应用提供本地打印能力。');
+
+        await HE.addText(540, 200, 1700, 50, '1.2  核心特性');
+        await HE.setStyle('FontSize', 15);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(610, 200, 1700, 50, '■ 超轻量级：采用 Rust + Axum 技术栈，可执行文件仅 1.4MB，');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(660, 200, 1700, 50, '   无需安装 .NET / Java 运行时，零依赖部署。');
+        await HE.addText(710, 200, 1700, 50, '■ 多内容类型：支持文本（多样式）、图片（PNG/JPG）、条码');
+        await HE.addText(760, 200, 1700, 50, '   （QRCode/Code128/EAN13）、表格（HTML）、PDF 等格式。');
+        await HE.addText(810, 200, 1700, 50, '■ 多纸张支持：A4/A5/Letter/自定义尺寸，80mm/58mm 卷筒纸。');
+        await HE.addText(860, 200, 1700, 50, '■ 安全可靠：仅监听 127.0.0.1 本地回环地址，不暴露任何网络端口。');
+        await HE.addText(910, 200, 1700, 50, '■ 高性能：Rust 原生性能，打印延迟 < 50ms，支持静默打印。');
+        await HE.addText(960, 200, 1700, 50, '■ 兼容性强：替代 C-Lodop，SDK API 设计相似，迁移成本低。');
+
+        await HE.addText(1040, 200, 1700, 50, '1.3  技术架构');
+        await HE.setStyle('FontSize', 15);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(1110, 200, 1700, 50, '系统架构分为三层：');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1160, 200, 1700, 50, '  前端层：JavaScript SDK（heprint.js），封装所有打印命令，');
+        await HE.addText(1210, 200, 1700, 50, '         支持 Promise 链式调用和事件回调。');
+        await HE.addText(1260, 200, 1700, 50, '  通信层：HTTP REST（同步命令）+ WebSocket（实时状态推送），');
+        await HE.addText(1310, 200, 1700, 50, '         使用 JSON-RPC 2.0 协议格式，端口 18000。');
+        await HE.addText(1360, 200, 1700, 50, '  渲染层：Win32 GDI（Device Context），直接调用系统打印');
+        await HE.addText(1410, 200, 1700, 50, '         驱动，支持 DrawTextW/TextOutW/StretchBlt 等原生 API。');
+
+        await HE.addText(1500, 200, 1700, 50, '1.4  系统要求');
+        await HE.setStyle('FontSize', 15);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(1570, 200, 1700, 50, '■ 操作系统：Windows 10 / 11（64 位）');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1620, 200, 1700, 50, '■ 运行时：无需额外运行时（Rust 编译为原生二进制）');
+        await HE.addText(1670, 200, 1700, 50, '■ 打印机：支持 Windows 系统中安装的任意打印机');
+        await HE.addText(1720, 200, 1700, 50, '■ 浏览器：Chrome / Edge / Firefox（支持 WebSocket）');
+        await HE.addText(1770, 200, 1700, 50, '■ 网络服务：仅需 127.0.0.1:18000 端口可用');
+        await HE.addText(1850, 200, 1700, 50, '■ 磁盘空间：约 5MB（程序 + 日志 + 缓存）');
+
+        await HE.addLine(2700, 200, 2700, 1900, 'solid', 1);
+        await HE.addText(2720, 600, 700, 35, '第 3 页');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Alignment', 3);
+        await HE.addText(2720, 200, 1700, 35, 'HePrint v1.0.0 产品说明书');
+        await HE.setStyle('Alignment', 1);
+
+        await HE.newPage();
+
+        // ====== 第4页：安装部署（内容铺满） ======
+        await HE.addText(150, 200, 1700, 80, '第二章  安装部署');
+        await HE.setStyle('FontSize', 22);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 1);
+        await HE.addLine(260, 200, 260, 1900, 'solid', 2);
+
+        await HE.addText(290, 200, 1700, 50, '2.1  安装步骤');
+        await HE.setStyle('FontSize', 15);
+        await HE.addText(360, 200, 1700, 50, '步骤一：从 release 页面下载 heprint-v1.0.0.zip 压缩包。');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(410, 200, 1700, 50, '步骤二：将压缩包解压到目标目录，建议路径 C:\\heprint\\。');
+        await HE.addText(460, 200, 1700, 50, '步骤三：右键点击 install.cmd，选择"以管理员身份运行"，');
+        await HE.addText(510, 200, 1700, 50, '         系统会自动注册为 Windows 后台服务。');
+        await HE.addText(560, 200, 1700, 50, '步骤四：运行 start.cmd 启动服务，或在"服务"管理器中启动。');
+        await HE.addText(610, 200, 1700, 50, '步骤五：浏览器打开 http://127.0.0.1:18000/ 验证服务状态。');
+        await HE.addText(660, 200, 1700, 50, '步骤六：在前端 HTML 中引入 <script src="web-sdk/heprint.js">');
+
+        await HE.addText(740, 200, 1700, 50, '2.2  服务管理');
+        await HE.setStyle('FontSize', 15);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(810, 200, 1700, 50, '■ 启动服务：双击 start.cmd 或使用 net start heprint 命令。');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(860, 200, 1700, 50, '■ 停止服务：双击 stop.cmd 或使用 net stop heprint 命令。');
+        await HE.addText(910, 200, 1700, 50, '■ 卸载服务：双击 uninstall.cmd 或使用 sc delete heprint。');
+        await HE.addText(960, 200, 1700, 50, '■ 查看日志：日志文件位于 logs/ 目录，按日期滚动。');
+        await HE.addText(1010, 200, 1700, 50, '■ 端口修改：编辑 config.toml 中的 port 字段（默认 18000）。');
+
+        await HE.addText(1090, 200, 1700, 50, '2.3  SDK 快速集成');
+        await HE.setStyle('FontSize', 15);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(1160, 200, 1700, 50, '在 HTML 中引入 SDK 后即可使用 HE 全局对象：');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1220, 300, 1500, 50, '// 初始化打印任务');
+        await HE.setStyle('FontSize', 10);
+        await HE.addText(1270, 300, 1500, 50, 'await HE.init("订单小票");');
+        await HE.addText(1320, 300, 1500, 50, '// 添加文本内容（坐标单位: 0.1mm）');
+        await HE.addText(1370, 300, 1500, 50, 'await HE.addText(200, 200, 1800, 200, "Hello World");');
+        await HE.addText(1420, 300, 1500, 50, '// 设置样式');
+        await HE.addText(1470, 300, 1500, 50, 'await HE.setStyle("FontSize", 14);');
+        await HE.addText(1520, 300, 1500, 50, 'await HE.setStyle("Bold", 1);');
+        await HE.addText(1570, 300, 1500, 50, '// 静默打印');
+        await HE.addText(1620, 300, 1500, 50, 'const result = await HE.printSilent();');
+
+        await HE.addText(1700, 200, 1700, 50, '2.4  常见安装问题');
+        await HE.setStyle('FontSize', 15);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(1770, 200, 1700, 50, '■ Q: 提示"端口被占用"？');
+        await HE.setStyle('FontSize', 11);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1820, 200, 1700, 50, '  A: 使用 netstat -ano | findstr 18000 查看占用进程并关闭。');
+        await HE.addText(1870, 200, 1700, 50, '■ Q: 安装服务失败？');
+        await HE.addText(1920, 200, 1700, 50, '  A: 请确保以管理员身份运行 install.cmd。');
+        await HE.addText(1970, 200, 1700, 50, '■ Q: 打印机列表为空？');
+        await HE.addText(2020, 200, 1700, 50, '  A: 请先在系统中安装并设置默认打印机。');
+        await HE.addText(2070, 200, 1700, 50, '■ Q: 跨域请求被拦截？');
+        await HE.addText(2120, 200, 1700, 50, '  A: HePrint 仅支持 127.0.0.1 本地访问，不存在跨域问题。');
+
+        await HE.addLine(2700, 200, 2700, 1900, 'solid', 1);
+        await HE.addText(2720, 600, 700, 35, '第 4 页');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Alignment', 3);
+        await HE.addText(2720, 200, 1700, 35, 'HePrint v1.0.0 产品说明书');
+        await HE.setStyle('Alignment', 1);
+
+        const r = await HE.printSilent();
+        log(`✅ 多页文档打印：${r.pages || 4} 页`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 13. 批量
+// ========================================================================
+let batchCancelled = false;
+async function testBatchPrint() {
+    batchCancelled = false;
+    const count = +document.getElementById('t13-count').value;
+    const targetPrinter = document.getElementById('t13-printer').value;
+    log(`🚀 开始批量打印 ${count} 个任务...`);
+    let success = 0, failed = 0;
+    for (let i = 1; i <= count; i++) {
+        if (batchCancelled) { log('已取消'); break; }
+        try {
+            await HE.init(`批量任务 #${i}`);
+            if (targetPrinter) await HE.setPrinter(targetPrinter);
+            await HE.addText(200, 200, 1800, 200, `批量任务 #${i} / ${count}`);
+            await HE.setStyle('FontSize', 18);
+            await HE.setStyle('Bold', 1);
+            await HE.addText(450, 200, 1800, 100, '时间: ' + new Date().toLocaleTimeString());
+            await HE.setStyle('FontSize', 12);
+            const r = await HE.printSilent();
+            success++;
+            log(`   ✅ #${i}: ${r.taskId || 'ok'}`, 'success');
+        } catch (e) {
+            failed++;
+            log(`   ❌ #${i}: ${e.message}`, 'error');
+        }
+    }
+    log(`📊 批量完成: 成功 ${success} / 失败 ${failed}`, success > 0 ? 'success' : 'error');
+}
+function testBatchCancel() {
+    batchCancelled = true;
+    log('⚠️ 正在取消批量任务（当前任务完成后停止）', 'warn');
+}
+
+// ========================================================================
+// 14. 选择打印机
+// ========================================================================
+async function testSetPrinter() {
+    const target = document.getElementById('t14-target').value;
+    if (!target) { log('❌ 请输入打印机名', 'error'); return; }
+    try {
+        const v = +target;
+        const param = isNaN(v) ? target : v;
+        await HE.setPrinter(param);
+        const exists = await HE.hasPrinter(target);
+        log(`✅ 打印机设置成功: ${target} (存在: ${exists})`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+async function testPrintToSelected() {
+    const target = document.getElementById('t14-target').value || document.getElementById('target-printer').value;
+    if (!target) { log('❌ 请先选择打印机', 'error'); return; }
+    try {
+        await HE.init('指定打印机测试');
+        await HE.setPrinter(target);
+        await HE.setPage(1, 210, 297, 'A4');
+
+        // ====== 标题 ======
+        await HE.addText(150, 200, 1700, 80, '打印机测试页');
+        await HE.setStyle('FontSize', 24);
+        await HE.setStyle('Bold', 1);
+        await HE.setStyle('Alignment', 2);
+
+        // ====== 打印机信息 ======
+        await HE.addText(280, 200, 1700, 50, '目标打印机: ' + target);
+        await HE.setStyle('FontSize', 14);
+        await HE.setStyle('Bold', 0);
+        await HE.setStyle('Alignment', 1);
+        await HE.addText(360, 200, 1700, 50, '打印时间: ' + new Date().toLocaleString());
+        await HE.setStyle('FontSize', 12);
+        await HE.addText(430, 200, 1700, 50, '任务编号: ' + Date.now().toString(36).toUpperCase());
+        await HE.addText(500, 200, 1700, 50, '服务版本: HePrint v1.0.0');
+
+        await HE.addLine(580, 200, 580, 1900, 'solid', 2);
+
+        // ====== 打印质量检测区域 ======
+        await HE.addText(630, 200, 1700, 50, '■ 文本清晰度测试');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.addText(710, 200, 1700, 45, '中文字符：永东南西北上下左右大小多少新旧好坏快慢高低长短远近');
+        await HE.setStyle('FontSize', 12);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(770, 200, 1700, 45, '英文字符：ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz');
+        await HE.addText(830, 200, 1700, 45, '数字符号：0123456789 !@#$%^&*() +-*/=<>[]{}|;:\'",./?');
+        await HE.addText(890, 200, 1700, 45, '特殊字符：★☆●○◆◇△▽□■◎♀♂↑↓←→↔↕▲▼※℃℉°±×÷');
+
+        // ====== 字号测试 ======
+        await HE.addText(970, 200, 1700, 50, '■ 字号测试');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        const testSizes = [6, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28];
+        for (let i = 0; i < testSizes.length; i++) {
+            await HE.addText(1040 + i * 55, 200, 1700, 50, `${testSizes[i]}pt - HePrint 打印质量测试`);
+            await HE.setStyle('FontSize', testSizes[i]);
+            await HE.setStyle('Bold', 0);
+        }
+
+        // ====== 边框测试 ======
+        await HE.addLine(1730, 200, 1730, 1900, 'solid', 2);
+        await HE.addText(1770, 200, 1700, 50, '■ 边框与对齐测试');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+
+        // 边框矩形
+        await HE.addRect(1850, 200, 1700, 600, 'solid', 2);
+        await HE.addText(1870, 220, 1660, 50, '左对齐文本 - Left Alignment');
+        await HE.setStyle('FontSize', 12);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(1920, 220, 1660, 50, '居中对齐文本 - Center Alignment');
+        await HE.setStyle('Alignment', 2);
+        await HE.addText(1970, 220, 1660, 50, '右对齐文本 - Right Alignment');
+        await HE.setStyle('Alignment', 3);
+        await HE.addText(2020, 220, 1660, 50, '恢复左对齐 - Back to Left Alignment');
+        await HE.setStyle('Alignment', 1);
+
+        // ====== 线条测试 ======
+        await HE.addText(2150, 200, 1700, 50, '■ 线条测试');
+        await HE.setStyle('FontSize', 16);
+        await HE.setStyle('Bold', 1);
+        await HE.addLine(2220, 200, 2220, 1900, 'solid', 1);
+        await HE.addLine(2260, 200, 2260, 1900, 'solid', 2);
+        await HE.addLine(2300, 200, 2300, 1900, 'solid', 3);
+        await HE.addLine(2340, 200, 2340, 1900, 'dashed', 1);
+        await HE.addLine(2380, 200, 2380, 1900, 'dashed', 2);
+        await HE.addLine(2420, 200, 2420, 1900, 'dotted', 1);
+        await HE.addLine(2460, 200, 2460, 1900, 'dotted', 2);
+
+        // ====== 底部信息 ======
+        await HE.addLine(2550, 200, 2550, 1900, 'solid', 1);
+        await HE.addText(2580, 200, 1700, 40, '本测试页由 HePrint 自动生成');
+        await HE.setStyle('FontSize', 10);
+        await HE.setStyle('Bold', 0);
+        await HE.addText(2620, 200, 1700, 40, '如打印内容清晰完整，说明打印机工作正常');
+        await HE.addText(2660, 200, 1700, 40, '如有模糊、断针、偏移等问题，请检查打印机硬件设置');
+        await HE.addText(2720, 200, 1700, 40, '测试完成时间: ' + new Date().toLocaleString());
+        await HE.addText(2760, 200, 1700, 40, 'HePrint v1.0.0 © 2026 All Rights Reserved');
+        await HE.setStyle('Alignment', 2);
+
+        const r = await HE.printSilent();
+        log(`✅ 已发送到 [${target}]: ${r.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+async function testCheckPrinter() {
+    const target = document.getElementById('t14-target').value;
+    if (!target) { log('❌ 请输入打印机名', 'error'); return; }
+    const exists = await HE.hasPrinter(target);
+    log(exists ? `✅ ${target} 存在` : `❌ ${target} 不存在`, exists ? 'success' : 'error');
+}
+
+// 加载打印机列表到 ⑭
+async function loadT14List() {
+    const printers = await HE.getPrinters().catch(() => []);
+    const el = document.getElementById('t14-list');
+    el.innerHTML = printers.map(p => `
+        <div class="printer-card">
+            <div><span class="name">${escapeHtml(p)}</span></div>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="document.getElementById('t14-target').value='${escapeHtml(p)}'">选择</button>
+            </div>
+        </div>
+    `).join('');
+    // 自动加载
+    setTimeout(loadT14List, 100);
+}
+loadT14List();
+
+// ========================================================================
+// 15. 链式 Builder
+// ========================================================================
+async function testBuilder() {
+    try {
+        const printers = await HE.getPrinters();
+        const target = printers[0] || '';
+        const result = await HE.build('Builder 演示')
+            .page(3, 80, 0)               // 80mm 卷筒
+            .printer(target)               // 选第一台
+            .text(20, 10, 280, 30, '订单 #001')
+                .style('FontSize', 14)
+                .style('Bold', 1)
+                .style('Alignment', 2)
+            .barcode(60, 50, 200, 200, 'QRCode', 'https://heprint.example.com')
+            .line(280, 0, 280, 800, 'dashed', 1)
+            .rect(290, 10, 260, 60, 'solid', 1)
+            .text(310, 30, 220, 30, '合计: ¥299.00')
+                .style('FontSize', 12)
+                .style('Alignment', 2)
+            .print(true);
+        log(`✅ 链式 Builder 成功: ${result.taskId || 'ok'}`, 'success');
+    } catch (e) {
+        log('❌ ' + e.message, 'error');
+    }
+}
+
+// 注册全局回调
+HE.onResult((r) => console.log('[HE.onResult]', r));
+</script>
+
+</body>
+</html>
