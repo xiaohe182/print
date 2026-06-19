@@ -8,22 +8,23 @@
 use heprint_core::{
     Alignment, ErrorCode, HeError, ItemType, LineStyle, PrintItem, PrintStyle, Rect, Result,
 };
-use heprint_render::{decode_image, render_barcode, html_to_text};
+use heprint_render::{decode_image, html_to_text, render_barcode, ImageBuffer, PdfRenderer};
 
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{COLORREF, RECT};
 use windows::Win32::Graphics::Gdi::{
-    CreateFontW, CreatePen, CreateSolidBrush, DeleteObject, GetDeviceCaps,
-    LineTo, MoveToEx, Rectangle, SelectObject, SetBkMode, SetTextColor,
-    StretchDIBits, TextOutW, DrawTextW, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
-    DT_CENTER, DT_LEFT, DT_RIGHT, DT_VCENTER, DT_WORDBREAK,
-    HDC, LOGPIXELSX, LOGPIXELSY, PS_DASH, PS_DOT, PS_SOLID,
-    SRCCOPY, TRANSPARENT,
+    CreateFontW, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW, GetDeviceCaps, LineTo,
+    MoveToEx, Rectangle, SelectObject, SetBkMode, SetTextColor, StretchDIBits, TextOutW,
+    BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, DT_CENTER, DT_LEFT, DT_RIGHT, DT_VCENTER,
+    DT_WORDBREAK, HDC, LOGPIXELSX, LOGPIXELSY, PHYSICALOFFSETX, PHYSICALOFFSETY, PS_DASH, PS_DOT,
+    PS_SOLID, SRCCOPY, TRANSPARENT,
 };
 /// 0.1 mm → 像素（基于设备 DPI）
 struct DeviceMetrics {
     dpi_x: i32,
     dpi_y: i32,
+    offset_x: i32,
+    offset_y: i32,
 }
 
 impl DeviceMetrics {
@@ -32,6 +33,8 @@ impl DeviceMetrics {
             Self {
                 dpi_x: GetDeviceCaps(hdc, LOGPIXELSX),
                 dpi_y: GetDeviceCaps(hdc, LOGPIXELSY),
+                offset_x: GetDeviceCaps(hdc, PHYSICALOFFSETX),
+                offset_y: GetDeviceCaps(hdc, PHYSICALOFFSETY),
             }
         }
     }
@@ -44,6 +47,14 @@ impl DeviceMetrics {
     fn y(&self, deci_mm: i32) -> i32 {
         ((deci_mm as f64) / 254.0 * self.dpi_y as f64) as i32
     }
+
+    fn x_pos(&self, deci_mm: i32) -> i32 {
+        self.x(deci_mm) - self.offset_x
+    }
+
+    fn y_pos(&self, deci_mm: i32) -> i32 {
+        self.y(deci_mm) - self.offset_y
+    }
 }
 
 /// 渲染一个打印项
@@ -51,23 +62,46 @@ pub fn render_item(hdc: HDC, item: &PrintItem) -> Result<()> {
     let m = DeviceMetrics::from(hdc);
 
     match item {
-        PrintItem::Text { bounds, style, text } => render_text(hdc, &m, *bounds, style, text),
+        PrintItem::Text {
+            bounds,
+            style,
+            text,
+        } => render_text(hdc, &m, *bounds, style, text),
         PrintItem::Image { bounds, src, .. } => render_image(hdc, &m, *bounds, src),
-        PrintItem::Barcode { bounds, btype, value, .. } => {
-            render_barcode_item(hdc, &m, *bounds, *btype, value)
+        PrintItem::Barcode {
+            bounds,
+            btype,
+            value,
+            ..
+        } => render_barcode_item(hdc, &m, *bounds, *btype, value),
+        PrintItem::Line {
+            x1,
+            y1,
+            x2,
+            y2,
+            line_style,
+            line_width,
+            ..
+        } => render_line(hdc, &m, *x1, *y1, *x2, *y2, *line_style, *line_width),
+        PrintItem::Rect {
+            bounds,
+            line_style,
+            line_width,
+            ..
+        } => render_rect(hdc, &m, *bounds, *line_style, *line_width),
+        PrintItem::Html {
+            bounds,
+            html,
+            style,
         }
-        PrintItem::Line { x1, y1, x2, y2, line_style, line_width, .. } => {
-            render_line(hdc, &m, *x1, *y1, *x2, *y2, *line_style, *line_width)
-        }
-        PrintItem::Rect { bounds, line_style, line_width, .. } => {
-            render_rect(hdc, &m, *bounds, *line_style, *line_width)
-        }
-        PrintItem::Html { bounds, html, style } | PrintItem::Table { bounds, html, style } => {
-            render_html_item(hdc, &m, *bounds, style, html)
-        }
-        PrintItem::Pdf { bounds, content, .. } => {
-            render_pdf_item(hdc, &m, *bounds, content)
-        }
+        | PrintItem::Table {
+            bounds,
+            html,
+            style,
+        } => render_html_item(hdc, &m, *bounds, style, html),
+        PrintItem::Pdf {
+            bounds, content, ..
+        } => render_pdf_item(hdc, &m, *bounds, content),
         PrintItem::PageBreak => Ok(()),
     }
 }
@@ -81,8 +115,8 @@ fn render_text(
     text: &str,
 ) -> Result<()> {
     unsafe {
-        let _x = m.x(bounds.left);
-        let _y = m.y(bounds.top);
+        let _x = m.x_pos(bounds.left);
+        let _y = m.y_pos(bounds.top);
         let _w = m.x(bounds.width);
         let _h = m.y(bounds.height);
 
@@ -98,19 +132,32 @@ fn render_text(
         // pt → 像素：1pt = 1/72 inch
         let font_height_px = -(font_size_pt * m.dpi_y as f64 / 72.0) as i32;
 
-        let weight = if style.bold.unwrap_or(false) { 700 } else { 400 };
+        let weight = if style.bold.unwrap_or(false) {
+            700
+        } else {
+            400
+        };
         let italic = if style.italic.unwrap_or(false) { 1 } else { 0 };
-        let underline = if style.underline.unwrap_or(false) { 1 } else { 0 };
+        let underline = if style.underline.unwrap_or(false) {
+            1
+        } else {
+            0
+        };
 
         let hfont = CreateFontW(
             font_height_px,
-            0, 0, 0,
+            0,
+            0,
+            0,
             weight,
             italic,
             underline,
             0,
             1, // DEFAULT_CHARSET (会兼容中文)
-            0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
             PCWSTR(font_name_w.as_ptr()),
         );
         let old_font = SelectObject(hdc, hfont);
@@ -182,15 +229,29 @@ fn render_image(hdc: HDC, m: &DeviceMetrics, bounds: Rect, src: &str) -> Result<
     }
 
     unsafe {
-        let dest_x = m.x(bounds.left);
-        let dest_y = m.y(bounds.top);
-        let dest_w = if bounds.width > 0 { m.x(bounds.width) } else { w as i32 };
-        let dest_h = if bounds.height > 0 { m.y(bounds.height) } else { h as i32 };
+        let dest_x = m.x_pos(bounds.left);
+        let dest_y = m.y_pos(bounds.top);
+        let dest_w = if bounds.width > 0 {
+            m.x(bounds.width)
+        } else {
+            w as i32
+        };
+        let dest_h = if bounds.height > 0 {
+            m.y(bounds.height)
+        } else {
+            h as i32
+        };
 
         let r = StretchDIBits(
             hdc,
-            dest_x, dest_y, dest_w, dest_h,
-            0, 0, w as i32, h as i32,
+            dest_x,
+            dest_y,
+            dest_w,
+            dest_h,
+            0,
+            0,
+            w as i32,
+            h as i32,
             Some(bgra.as_ptr() as _),
             &bi,
             DIB_RGB_COLORS,
@@ -236,19 +297,21 @@ fn render_barcode_item(
     unsafe {
         let r = StretchDIBits(
             hdc,
-            m.x(bounds.left), m.y(bounds.top),
-            m.x(bounds.width), m.y(bounds.height),
-            0, 0, bmp.width as i32, bmp.height as i32,
+            m.x_pos(bounds.left),
+            m.y_pos(bounds.top),
+            m.x(bounds.width),
+            m.y(bounds.height),
+            0,
+            0,
+            bmp.width as i32,
+            bmp.height as i32,
             Some(bgra.as_ptr() as _),
             &bi,
             DIB_RGB_COLORS,
             SRCCOPY,
         );
         if r == 0 {
-            return Err(HeError::coded(
-                ErrorCode::Unknown,
-                "条码绘制失败",
-            ));
+            return Err(HeError::coded(ErrorCode::Unknown, "条码绘制失败"));
         }
     }
     Ok(())
@@ -257,7 +320,10 @@ fn render_barcode_item(
 fn render_line(
     hdc: HDC,
     m: &DeviceMetrics,
-    x1: i32, y1: i32, x2: i32, y2: i32,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
     line_style: LineStyle,
     line_width: f64,
 ) -> Result<()> {
@@ -272,8 +338,8 @@ fn render_line(
         let old = SelectObject(hdc, hpen);
 
         let mut prev = Default::default();
-        let _ = MoveToEx(hdc, m.x(x1), m.y(y1), Some(&mut prev));
-        let _ = LineTo(hdc, m.x(x2), m.y(y2));
+        let _ = MoveToEx(hdc, m.x_pos(x1), m.y_pos(y1), Some(&mut prev));
+        let _ = LineTo(hdc, m.x_pos(x2), m.y_pos(y2));
 
         SelectObject(hdc, old);
         let _ = DeleteObject(hpen);
@@ -304,10 +370,10 @@ fn render_rect(
 
         let _ = Rectangle(
             hdc,
-            m.x(bounds.left),
-            m.y(bounds.top),
-            m.x(bounds.left + bounds.width),
-            m.y(bounds.top + bounds.height),
+            m.x_pos(bounds.left),
+            m.y_pos(bounds.top),
+            m.x_pos(bounds.left + bounds.width),
+            m.y_pos(bounds.top + bounds.height),
         );
 
         SelectObject(hdc, old_brush);
@@ -347,66 +413,93 @@ fn render_html_item(
 }
 
 /// 渲染 PDF 项
-/// v1: 提取 PDF 为位图后 GDI 绘制
-fn render_pdf_item(
+/// 单项渲染入口只绘制第一页；打印管线会调用 PdfRenderer 逐页输出。
+fn render_pdf_item(hdc: HDC, _m: &DeviceMetrics, bounds: Rect, content: &str) -> Result<()> {
+    let renderer = PdfRenderer::new(content)?;
+    if renderer.page_count()? == 0 {
+        return Err(HeError::coded(
+            ErrorCode::PdfDecodeFailed,
+            "PDF has no pages",
+        ));
+    }
+    let (width, height) = pdf_target_size(hdc, bounds);
+    let image = renderer.render_page(0, width, height)?;
+    render_pdf_page(hdc, bounds, &image)
+}
+
+pub fn pdf_target_size(hdc: HDC, bounds: Rect) -> (u32, u32) {
+    let m = DeviceMetrics::from(hdc);
+    (
+        m.x(bounds.width).max(1) as u32,
+        m.y(bounds.height).max(1) as u32,
+    )
+}
+
+pub fn render_pdf_page(hdc: HDC, bounds: Rect, image: &ImageBuffer) -> Result<()> {
+    let m = DeviceMetrics::from(hdc);
+    render_image_buffer(hdc, &m, bounds, image, ErrorCode::PdfDecodeFailed)
+}
+
+fn render_image_buffer(
     hdc: HDC,
     m: &DeviceMetrics,
     bounds: Rect,
-    content: &str,
+    image: &ImageBuffer,
+    error_code: ErrorCode,
 ) -> Result<()> {
-    // PDF 内容可以是 base64 编码或文件路径
-    // v1: 尝试将 PDF 内容作为 base64 图像处理（用户可能传入的是扫描件）
-    // 或者尝试作为图片 URL 处理
-
-    // 先尝试作为 base64 图片解码
-    if content.starts_with("data:image/") || content.starts_with("data:application/pdf") {
-        // 尝试作为图片处理（PDF 第一页截图的常见做法）
-        if let Ok(img) = decode_image(content) {
-            let rgba = img.to_rgba8();
-            let (w, h) = rgba.dimensions();
-            let pixels: &[u8] = rgba.as_raw();
-
-            let mut bi = BITMAPINFO::default();
-            bi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
-            bi.bmiHeader.biWidth = w as i32;
-            bi.bmiHeader.biHeight = -(h as i32);
-            bi.bmiHeader.biPlanes = 1;
-            bi.bmiHeader.biBitCount = 32;
-            bi.bmiHeader.biCompression = BI_RGB.0;
-
-            let mut bgra = Vec::with_capacity(pixels.len());
-            for chunk in pixels.chunks_exact(4) {
-                bgra.push(chunk[2]);
-                bgra.push(chunk[1]);
-                bgra.push(chunk[0]);
-                bgra.push(chunk[3]);
-            }
-
-            unsafe {
-                let dest_w = if bounds.width > 0 { m.x(bounds.width) } else { w as i32 };
-                let dest_h = if bounds.height > 0 { m.y(bounds.height) } else { h as i32 };
-                let r = StretchDIBits(
-                    hdc, m.x(bounds.left), m.y(bounds.top), dest_w, dest_h,
-                    0, 0, w as i32, h as i32,
-                    Some(bgra.as_ptr() as _),
-                    &bi, DIB_RGB_COLORS, SRCCOPY,
-                );
-                if r == 0 {
-                    return Err(HeError::coded(ErrorCode::PdfDecodeFailed, "PDF 图片绘制失败"));
-                }
-            }
-            return Ok(());
-        }
+    let rgba = image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let mut bgra = Vec::with_capacity(rgba.as_raw().len());
+    for pixel in rgba.as_raw().chunks_exact(4) {
+        bgra.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
     }
 
-    // 降级：显示 PDF 占位文字
-    let placeholder = "[PDF 文档 - 请用浏览器原生打印查看完整内容]";
-    render_text(hdc, m, bounds, &PrintStyle::default(), placeholder)
+    let mut info = BITMAPINFO::default();
+    info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    info.bmiHeader.biWidth = width as i32;
+    info.bmiHeader.biHeight = -(height as i32);
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB.0;
+
+    unsafe {
+        let bounds_width = m.x(bounds.width).max(1);
+        let bounds_height = m.y(bounds.height).max(1);
+        let scale = (bounds_width as f64 / width as f64).min(bounds_height as f64 / height as f64);
+        let dest_width = (width as f64 * scale).round().max(1.0) as i32;
+        let dest_height = (height as f64 * scale).round().max(1.0) as i32;
+        let dest_x = m.x_pos(bounds.left) + (bounds_width - dest_width) / 2;
+        let dest_y = m.y_pos(bounds.top) + (bounds_height - dest_height) / 2;
+        let result = StretchDIBits(
+            hdc,
+            dest_x,
+            dest_y,
+            dest_width,
+            dest_height,
+            0,
+            0,
+            width as i32,
+            height as i32,
+            Some(bgra.as_ptr() as _),
+            &info,
+            DIB_RGB_COLORS,
+            SRCCOPY,
+        );
+        if result == 0 {
+            return Err(HeError::coded(error_code, "bitmap rendering failed"));
+        }
+    }
+    Ok(())
 }
 
 /// 渲染位图到 HDC（公共函数，HTML/PDF/条码 共用）
 #[allow(dead_code)]
-fn render_bitmap(hdc: HDC, m: &DeviceMetrics, bounds: Rect, bmp: &heprint_render::Bitmap) -> Result<()> {
+fn render_bitmap(
+    hdc: HDC,
+    m: &DeviceMetrics,
+    bounds: Rect,
+    bmp: &heprint_render::Bitmap,
+) -> Result<()> {
     let mut bgra = Vec::with_capacity(bmp.pixels.len());
     for chunk in bmp.pixels.chunks_exact(4) {
         bgra.push(chunk[2]);
@@ -426,11 +519,18 @@ fn render_bitmap(hdc: HDC, m: &DeviceMetrics, bounds: Rect, bmp: &heprint_render
     unsafe {
         let r = StretchDIBits(
             hdc,
-            m.x(bounds.left), m.y(bounds.top),
-            m.x(bounds.width), m.y(bounds.height),
-            0, 0, bmp.width as i32, bmp.height as i32,
+            m.x_pos(bounds.left),
+            m.y_pos(bounds.top),
+            m.x(bounds.width),
+            m.y(bounds.height),
+            0,
+            0,
+            bmp.width as i32,
+            bmp.height as i32,
             Some(bgra.as_ptr() as _),
-            &bi, DIB_RGB_COLORS, SRCCOPY,
+            &bi,
+            DIB_RGB_COLORS,
+            SRCCOPY,
         );
         if r == 0 {
             return Err(HeError::coded(ErrorCode::Unknown, "位图绘制失败"));

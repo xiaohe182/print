@@ -40,6 +40,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Windows API
 windows = { version = "0.58", features = [
+    "Data_Pdf",
+    "Foundation",
+    "Storage_Streams",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Printing",
@@ -47,6 +50,7 @@ windows = { version = "0.58", features = [
     "Win32_Security",
     "Win32_System_Memory",
     "Win32_System_Com",
+    "Win32_System_WinRT",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

@@ -5,12 +5,12 @@ set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
 set "DIST=%SCRIPT_DIR%dist"
-set "STAGE=%DIST%\heprint-v1.0.0"
+set "STAGE=%DIST%\heprint-v1.1.1"
 set "RES=%SCRIPT_DIR%installer\resources"
 
 echo.
 echo ========================================
-echo   HePrint v1.0.0 Build Script
+echo   HePrint v1.1.1 Build Script
 echo ========================================
 echo.
 
@@ -48,9 +48,9 @@ for %%I in ("%STAGE%\heprint.exe") do echo       heprint.exe = %%~zI bytes
 
 echo.
 echo [3/4] Building ZIP package...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%STAGE%\*' -DestinationPath '%DIST%\heprint-v1.0.0.zip' -Force"
-if exist "%DIST%\heprint-v1.0.0.zip" (
-    for %%I in ("%DIST%\heprint-v1.0.0.zip") do echo       ZIP: %%~zI bytes
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%STAGE%\*' -DestinationPath '%DIST%\heprint-v1.1.1.zip' -Force"
+if exist "%DIST%\heprint-v1.1.1.zip" (
+    for %%I in ("%DIST%\heprint-v1.1.1.zip") do echo       ZIP: %%~zI bytes
 ) else (
     echo       [WARN] ZIP failed
 )
@@ -65,7 +65,7 @@ echo   Build Complete
 echo ========================================
 echo.
 echo Output:
-echo   ZIP:     %DIST%\heprint-v1.0.0.zip
+echo   ZIP:     %DIST%\heprint-v1.1.1.zip
 echo   Bundle:  %STAGE%\
 echo.
 echo Install:

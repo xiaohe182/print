@@ -8,18 +8,17 @@
 
 #![cfg(windows)]
 
-use heprint_core::{
-    ErrorCode, HeError, PrinterInfo, PrintItem, PrintTask, Result, TaskResult,
-};
+use heprint_core::{ErrorCode, HeError, PrintItem, PrintTask, PrinterInfo, Result, TaskResult};
+use heprint_render::PdfRenderer;
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Graphics::Gdi::{CreateDCW, DeleteDC, HDC};
 use windows::Win32::Graphics::Printing::{
-    ClosePrinter, EnumPrintersW, GetDefaultPrinterW, OpenPrinterW,
-    PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_INFO_2W,
+    ClosePrinter, EnumPrintersW, GetDefaultPrinterW, OpenPrinterW, PRINTER_ENUM_CONNECTIONS,
+    PRINTER_ENUM_LOCAL, PRINTER_INFO_2W,
 };
-use windows::Win32::Storage::Xps::{DOCINFOW, EndDoc, EndPage, StartDocW, StartPage};
+use windows::Win32::Storage::Xps::{AbortDoc, EndDoc, EndPage, StartDocW, StartPage, DOCINFOW};
 
 use crate::gdi;
 
@@ -196,8 +195,14 @@ pub fn print_task(task: PrintTask, _silent: bool) -> Result<TaskResult> {
         let mut total_pages = 0u32;
 
         for _copy in 0..copies {
-            let pages = render_task_pages(hdc, &task)?;
-            total_pages += pages;
+            match render_task_pages(hdc, &task) {
+                Ok(pages) => total_pages += pages,
+                Err(error) => {
+                    let _ = AbortDoc(hdc);
+                    let _ = DeleteDC(hdc);
+                    return Err(error);
+                }
+            }
         }
 
         // 4. EndDoc
@@ -213,6 +218,10 @@ unsafe fn render_task_pages(hdc: HDC, task: &PrintTask) -> Result<u32> {
     let mut page_count = 0u32;
     let mut page_started = false;
     let mut has_renderable = false;
+    let pdf_document_only = task
+        .items
+        .iter()
+        .all(|item| matches!(item, PrintItem::Pdf { .. } | PrintItem::PageBreak));
 
     for item in &task.items {
         if matches!(item, PrintItem::PageBreak) {
@@ -221,6 +230,53 @@ unsafe fn render_task_pages(hdc: HDC, task: &PrintTask) -> Result<u32> {
                 page_started = false;
             }
             continue;
+        }
+
+        if pdf_document_only {
+            if let PrintItem::Pdf {
+                bounds, content, ..
+            } = item
+            {
+                if page_started {
+                    let _ = EndPage(hdc);
+                    page_started = false;
+                }
+
+                let renderer = PdfRenderer::new(content)?;
+                let pdf_pages = renderer.page_count()?;
+                if pdf_pages == 0 {
+                    return Err(HeError::coded(
+                        ErrorCode::PdfDecodeFailed,
+                        "PDF has no pages",
+                    ));
+                }
+
+                let (width, height) = gdi::pdf_target_size(hdc, *bounds);
+                for page_index in 0..pdf_pages {
+                    let started = StartPage(hdc);
+                    if started <= 0 {
+                        return Err(HeError::coded(
+                            ErrorCode::PrintFailed,
+                            format!(
+                                "StartPage failed for PDF page {} (r={started})",
+                                page_index + 1
+                            ),
+                        ));
+                    }
+                    let image = renderer.render_page(page_index, width, height)?;
+                    gdi::render_pdf_page(hdc, *bounds, &image)?;
+                    let ended = EndPage(hdc);
+                    if ended <= 0 {
+                        return Err(HeError::coded(
+                            ErrorCode::PrintFailed,
+                            format!("EndPage failed for PDF page {} (r={ended})", page_index + 1),
+                        ));
+                    }
+                    page_count += 1;
+                }
+                has_renderable = true;
+                continue;
+            }
         }
 
         if !page_started {
@@ -235,9 +291,7 @@ unsafe fn render_task_pages(hdc: HDC, task: &PrintTask) -> Result<u32> {
             page_count += 1;
         }
 
-        if let Err(e) = gdi::render_item(hdc, item) {
-            tracing::warn!("渲染项失败: {e}");
-        }
+        gdi::render_item(hdc, item)?;
         has_renderable = true;
     }
 

@@ -1,6 +1,6 @@
 //! 全局打印管理器：跨 WS 会话的任务调度，并发 worker pool
 
-use heprint_core::{HeError, ErrorCode, PrintTask};
+use heprint_core::{ErrorCode, HeError, PrintTask};
 use parking_lot::Mutex;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -36,7 +36,11 @@ impl PrintManager {
     /// 提交一个打印任务到全局队列
     pub fn submit(&self, task: PrintTask, silent: bool) -> String {
         let job_id = task.task_id.clone();
-        let job = PrintJob { job_id: job_id.clone(), task, silent };
+        let job = PrintJob {
+            job_id: job_id.clone(),
+            task,
+            silent,
+        };
         self.queue.lock().push_back(job);
         // 唤醒一个 worker
         self.notify.notify_one();
@@ -50,6 +54,7 @@ impl PrintManager {
             {
                 let mut q = self.queue.lock();
                 if let Some(job) = q.pop_front() {
+                    self.running.lock().push(job.clone());
                     return job;
                 }
             }
@@ -96,17 +101,26 @@ pub fn spawn_workers(manager: Arc<PrintManager>, n: usize) {
                 let task_id = task.task_id.clone();
 
                 // 在阻塞线程中调用 GDI（防止阻塞 tokio）
-                let result = tokio::task::spawn_blocking(move || {
-                    heprint_print::print_task(task, silent)
-                })
-                .await
-                .unwrap_or_else(|e| {
-                    Err(HeError::coded(ErrorCode::Unknown, format!("线程错误: {e}")))
-                });
+                let result =
+                    tokio::task::spawn_blocking(move || heprint_print::print_task(task, silent))
+                        .await
+                        .unwrap_or_else(|e| {
+                            Err(HeError::coded(ErrorCode::Unknown, format!("线程错误: {e}")))
+                        });
 
                 match result {
-                    Ok(r) => tracing::info!("[Worker #{}] ✅ 任务完成: taskId={}, pages={:?}", worker_id, r.task_id, r.pages),
-                    Err(e) => tracing::error!("[Worker #{}] ❌ 任务失败: taskId={}, error={}", worker_id, task_id, e),
+                    Ok(r) => tracing::info!(
+                        "[Worker #{}] ✅ 任务完成: taskId={}, pages={:?}",
+                        worker_id,
+                        r.task_id,
+                        r.pages
+                    ),
+                    Err(e) => tracing::error!(
+                        "[Worker #{}] ❌ 任务失败: taskId={}, error={}",
+                        worker_id,
+                        task_id,
+                        e
+                    ),
                 }
 
                 mgr.finish(job);

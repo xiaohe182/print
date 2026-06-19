@@ -2,10 +2,14 @@
 
 pub mod barcode;
 pub mod image;
+#[cfg(windows)]
+pub mod pdf;
 pub mod webview2;
 
 pub use barcode::render_barcode;
 pub use image::{decode_image, ImageBuffer};
+#[cfg(windows)]
+pub use pdf::PdfRenderer;
 pub use webview2::html_to_text;
 
 /// 单色 / 灰度 / RGBA 位图

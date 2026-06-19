@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HePrint 桌面端打印测试中心 v1.0</title>
+    <title>HePrint 桌面端打印测试中心 v1.1</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><text y=%2252%22 font-size=%2252%22>🖨</text></svg>">
     <script src="web-sdk/heprint.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -192,7 +193,7 @@
 <div class="header">
     <div>
         <h1>🖨️ HePrint 桌面端打印测试中心</h1>
-        <div class="subtitle">v1.0.0 · 替代 C-Lodop 的极简本地打印服务（Rust + Axum + Win32 GDI）</div>
+        <div class="subtitle">v1.1.1 · 替代 C-Lodop 的本地打印服务（Rust + Axum + Win32 GDI）</div>
     </div>
     <div class="header-stats">
         <div>HE 版本：<strong id="he-version">-</strong></div>
@@ -245,7 +246,7 @@
             </li>
             <li onclick="switchTest('5', this)">
                 <strong>⑤ 打印 PDF</strong>
-                <small>HE_ADD_PDF (base64 / URL)</small>
+                <small>HE_ADD_PDF (base64 多页 PDF)</small>
             </li>
             <li onclick="switchTest('6', this)">
                 <strong>⑥ 打印 HTML</strong>
@@ -290,6 +291,10 @@
             <li onclick="switchTest('15', this)">
                 <strong>⑮ 链式 Builder API</strong>
                 <small>HE.build().text().print()</small>
+            </li>
+            <li onclick="switchTest('16', this)">
+                <strong>⑯ 全命令实验室</strong>
+                <small>HE_xxx + C-Lodop 别名全覆盖</small>
             </li>
         </ul>
     </div>
@@ -460,7 +465,7 @@ await HE.printSilent();</pre>
         <!-- 5. 打印 PDF -->
         <div class="test-panel" id="test-5" style="display:none">
             <h2>⑤ 打印 PDF <span class="badge badge-service">Service</span></h2>
-            <div class="desc">HE_ADD_PDF — 通过 base64 或 URL 发送 PDF，服务端解析后打印</div>
+            <div class="desc">HE_ADD_PDF — 上传 base64 PDF，使用 Windows 原生引擎逐页渲染并打印</div>
 
             <div class="form-row">
                 <label>PDF 文件</label>
@@ -643,6 +648,47 @@ console.log(result);
             </div>
         </div>
 
+        <!-- 16. 全命令实验室 -->
+        <div class="test-panel" id="test-16" style="display:none">
+            <h2>⑯ 全命令实验室 <span class="badge badge-service">Service</span></h2>
+            <div class="desc">
+                覆盖 HE_xxx 全命令、C-Lodop 常用别名、多任务、分页、样式定位、队列查询和 RAW 指令入口。
+                建议先运行"命令体检"，确认服务可用后再打印综合测试页。
+            </div>
+
+            <h4>命令覆盖清单：</h4>
+            <pre class="code" id="t16-command-list">HE_INIT / HE_OPEN_TASK / HE_CLOSE_TASK / HE_LIST_TASKS / HE_CLEAR
+HE_ADD_TEXT / HE_ADD_HTML / HE_ADD_TABLE / HE_ADD_IMAGE / HE_ADD_BARCODE / HE_ADD_PDF / HE_ADD_LINE / HE_ADD_RECT
+HE_SET_STYLE / HE_SET_STYLEA / HE_SET_PAGE / HE_SET_PRINTER / HE_SET_COPIES / HE_SET_OPTION
+HE_PRINT / HE_PRINT_SILENT / HE_PRINT_TASK / HE_PREVIEW / HE_NEW_PAGE
+HE_GET_PRINTERS / HE_GET_PRINTER_COUNT / HE_GET_PRINTER_NAME / HE_GET_DEFAULT_PRINTER / HE_HAS_PRINTER / HE_GET_INFO / HE_ON_RESULT
+HE_SEND_RAW / HE_VERSION
+
+C-Lodop aliases:
+PRINT_INIT / PRINT_INITA / ADD_PRINT_TEXT / ADD_PRINT_HTM / ADD_PRINT_TABLE / ADD_PRINT_IMAGE / ADD_PRINT_BARCODE
+ADD_PRINT_LINE / ADD_PRINT_RECT / SET_PRINT_STYLE / SET_PRINT_STYLEA / SET_PRINT_PAGESIZE / SET_PRINTER_INDEX
+SET_PRINT_COPIES / SET_PRINT_MODE / PRINT / PRINTA / PREVIEW / NEWPAGE / GET_PRINTER_NAME(S) / GET_DEFAULTPRINTER / GET_VALUE</pre>
+
+            <div class="form-row">
+                <label>目标打印机</label>
+                <select id="t16-printer">
+                    <option value="">-- 使用默认打印机 --</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>RAW 数据</label>
+                <textarea id="t16-raw">1B401B610148655072696E742052415720546573740A0A</textarea>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="testCommandAudit()">🔍 命令体检（不打印）</button>
+                <button class="btn btn-success" onclick="testAllCommandsPrint()">🖨️ 打印全命令综合页</button>
+                <button class="btn btn-warning" onclick="testLodopAliasPrint()">🧩 C-Lodop 别名打印</button>
+                <button class="btn btn-secondary" onclick="testRawCommand()">📡 发送 RAW 测试</button>
+                <button class="btn btn-danger" onclick="testClearTasks()">🧹 清理任务</button>
+            </div>
+        </div>
+
         <!-- Console -->
         <h3 style="margin-top:30px; font-size:11px; color:#6b7b86; text-transform:uppercase; letter-spacing:.5px;">📋 实时日志</h3>
         <div class="console" id="console">
@@ -686,6 +732,12 @@ function switchTest(id, el) {
     el.classList.add('active');
 }
 
+function switchToTest(id) {
+    const item = Array.from(document.querySelectorAll('.test-list li'))
+        .find(li => li.getAttribute('onclick') && li.getAttribute('onclick').includes(`'${id}'`));
+    if (item) switchTest(id, item);
+}
+
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -722,6 +774,8 @@ async function checkStatus() {
             // 批量测试的下拉
             const sel2 = document.getElementById('t13-printer');
             if (sel2) sel2.innerHTML = '<option value="">-- 使用默认 --</option>' + printers.map(p => `<option value="${p}">${p}</option>`).join('');
+            const sel16 = document.getElementById('t16-printer');
+            if (sel16) sel16.innerHTML = '<option value="">-- 使用默认 --</option>' + printers.map(p => `<option value="${p}">${p}</option>`).join('');
             log(`✅ 服务在线：${printers.length} 台打印机`, 'success');
         } else {
             dot.className = 'dot warning';
@@ -763,7 +817,7 @@ async function testListPrinters() {
                 <span class="badge">可用</span>
             </div>
             <div class="actions">
-                <button class="btn btn-secondary" onclick="document.getElementById('t14-target').value='${escapeHtml(p)}'; switchTest('14', document.querySelectorAll('.test-list li')[14]);">使用</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('t14-target').value='${escapeHtml(p)}'; switchToTest('14');">使用</button>
                 <button class="btn btn-warning" onclick="testPrintHelloTo('${escapeHtml(p)}')">测试打印</button>
             </div>
         </div>
@@ -1050,6 +1104,29 @@ async function testPrintPdf() {
     };
     reader.readAsDataURL(f);
 }
+
+function createDemoPdfDataUrl() {
+    const stream = 'BT /F1 20 Tf 36 120 Td (HePrint PDF OK) Tj ET\n';
+    const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 180] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+        `<< /Length ${stream.length} >>\nstream\n${stream}endstream`,
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+    ];
+    let pdf = '%PDF-1.4\n';
+    const offsets = [];
+    objects.forEach((object, index) => {
+        offsets.push(pdf.length);
+        pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    });
+    const xref = pdf.length;
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+    offsets.forEach(offset => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return `data:application/pdf;base64,${btoa(pdf)}`;
+}
+
 function testNativePdf() {
     const f = document.getElementById('t5-pdf').files[0];
     if (!f) { log('❌ 请选择 PDF 文件', 'error'); return; }
@@ -1715,7 +1792,7 @@ async function testPrintMultipage() {
         await HE.addText(1000, 300, 1500, 60, '产品说明书');
         await HE.setStyle('FontSize', 28);
         await HE.addLine(1100, 600, 1100, 1500, 'solid', 2);
-        await HE.addText(1200, 300, 1500, 50, '版本 v1.0.0');
+        await HE.addText(1200, 300, 1500, 50, '版本 v1.1.1');
         await HE.setStyle('FontSize', 16);
         await HE.setStyle('Bold', 0);
         await HE.addText(1300, 300, 1500, 50, '桌面端本地打印服务');
@@ -1823,7 +1900,7 @@ async function testPrintMultipage() {
         await HE.addText(2720, 600, 700, 35, '第 3 页');
         await HE.setStyle('FontSize', 10);
         await HE.setStyle('Alignment', 3);
-        await HE.addText(2720, 200, 1700, 35, 'HePrint v1.0.0 产品说明书');
+        await HE.addText(2720, 200, 1700, 35, 'HePrint v1.1.1 产品说明书');
         await HE.setStyle('Alignment', 1);
 
         await HE.newPage();
@@ -1837,7 +1914,7 @@ async function testPrintMultipage() {
 
         await HE.addText(290, 200, 1700, 50, '2.1  安装步骤');
         await HE.setStyle('FontSize', 15);
-        await HE.addText(360, 200, 1700, 50, '步骤一：从 release 页面下载 heprint-v1.0.0.zip 压缩包。');
+        await HE.addText(360, 200, 1700, 50, '步骤一：从 release 页面下载 heprint-v1.1.1.zip 压缩包。');
         await HE.setStyle('FontSize', 11);
         await HE.setStyle('Bold', 0);
         await HE.addText(410, 200, 1700, 50, '步骤二：将压缩包解压到目标目录，建议路径 C:\\heprint\\。');
@@ -1893,7 +1970,7 @@ async function testPrintMultipage() {
         await HE.addText(2720, 600, 700, 35, '第 4 页');
         await HE.setStyle('FontSize', 10);
         await HE.setStyle('Alignment', 3);
-        await HE.addText(2720, 200, 1700, 35, 'HePrint v1.0.0 产品说明书');
+        await HE.addText(2720, 200, 1700, 35, 'HePrint v1.1.1 产品说明书');
         await HE.setStyle('Alignment', 1);
 
         const r = await HE.printSilent();
@@ -1976,7 +2053,7 @@ async function testPrintToSelected() {
         await HE.addText(360, 200, 1700, 50, '打印时间: ' + new Date().toLocaleString());
         await HE.setStyle('FontSize', 12);
         await HE.addText(430, 200, 1700, 50, '任务编号: ' + Date.now().toString(36).toUpperCase());
-        await HE.addText(500, 200, 1700, 50, '服务版本: HePrint v1.0.0');
+        await HE.addText(500, 200, 1700, 50, '服务版本: HePrint v1.1.1');
 
         await HE.addLine(580, 200, 580, 1900, 'solid', 2);
 
@@ -2040,7 +2117,7 @@ async function testPrintToSelected() {
         await HE.addText(2620, 200, 1700, 40, '如打印内容清晰完整，说明打印机工作正常');
         await HE.addText(2660, 200, 1700, 40, '如有模糊、断针、偏移等问题，请检查打印机硬件设置');
         await HE.addText(2720, 200, 1700, 40, '测试完成时间: ' + new Date().toLocaleString());
-        await HE.addText(2760, 200, 1700, 40, 'HePrint v1.0.0 © 2026 All Rights Reserved');
+        await HE.addText(2760, 200, 1700, 40, 'HePrint v1.1.1 © 2026 All Rights Reserved');
         await HE.setStyle('Alignment', 2);
 
         const r = await HE.printSilent();
@@ -2097,6 +2174,209 @@ async function testBuilder() {
         log(`✅ 链式 Builder 成功: ${result.taskId || 'ok'}`, 'success');
     } catch (e) {
         log('❌ ' + e.message, 'error');
+    }
+}
+
+// ========================================================================
+// 16. 全命令实验室
+// ========================================================================
+function getT16Printer() {
+    return document.getElementById('t16-printer').value || '';
+}
+
+async function testCommandAudit() {
+    try {
+        log('开始全命令体检，不触发实际打印...');
+        const ok = await HE.isAvailable(true);
+        log(`服务可用: ${ok}`, ok ? 'success' : 'warn');
+        if (!ok) return;
+
+        const sdkMethods = [
+            'init', 'openTask', 'closeTask', 'listTasks', 'clear',
+            'addText', 'addHtml', 'addTable', 'addImage', 'addBarcode', 'addPdf', 'addLine', 'addRect',
+            'setStyle', 'setStyleA', 'setPage', 'setPrinter', 'setCopies', 'setOption',
+            'print', 'printSilent', 'printTask', 'preview', 'newPage',
+            'getPrinters', 'getPrinterCount', 'getPrinterName', 'getDefaultPrinter', 'hasPrinter', 'getInfo',
+            'sendRaw', 'PRINT_INIT', 'ADD_PRINT_TEXT', 'SET_PRINT_STYLEA', 'SET_PRINT_PAGESIZE',
+            'SET_PRINTER_INDEX', 'PRINTA', 'GET_PRINTER_NAMES', 'GET_DEFAULTPRINTER', 'GET_VALUE'
+        ];
+        const missing = sdkMethods.filter(name => typeof HE[name] !== 'function');
+        log(missing.length ? `SDK 缺失方法: ${missing.join(', ')}` : 'SDK 方法检查通过', missing.length ? 'error' : 'success');
+
+        logCmd('HE_GET_INFO', { key: 'version' });
+        log(`version = ${await HE.getInfo('version')}`);
+        logCmd('HE_GET_INFO', { key: 'queueLength' });
+        log(`queueLength = ${await HE.getInfo('queueLength')}`);
+        logCmd('HE_GET_PRINTERS', {});
+        const printers = await HE.getPrinters();
+        log(`printers = ${printers.length ? printers.join(' | ') : '(空)'}`);
+        logCmd('HE_GET_PRINTER_COUNT', {});
+        log(`printerCount = ${await HE.getPrinterCount()}`);
+        logCmd('HE_GET_PRINTER_NAME', { index: 0 });
+        log(`printer[0] = ${await HE.getPrinterName(0)}`);
+        logCmd('HE_GET_DEFAULT_PRINTER', {});
+        log(`default = ${await HE.getDefaultPrinter()}`);
+
+        logCmd('HE_OPEN_TASK', { taskName: '命令体检临时任务' });
+        const task = await HE.openTask('命令体检临时任务');
+        await task.page(1, 210, 297, 'A4')
+            .text(100, 100, 800, 60, '命令体检，不打印')
+            .style('FontSize', 12)
+            .styleA(0, 'Bold', 1)
+            .send();
+        logCmd('HE_LIST_TASKS', {});
+        const tasks = await HE.listTasks();
+        log(`activeTasks = ${tasks.map(t => t.taskId + ':' + t.name).join(', ') || '(空)'}`);
+        logCmd('HE_CLOSE_TASK', { taskId: task.id });
+        await task.close();
+        logCmd('HE_PREVIEW', {});
+        const preview = await HE.preview();
+        log(`preview = ${JSON.stringify(preview)}`);
+        log('✅ 全命令体检完成', 'success');
+    } catch (e) {
+        log('❌ 命令体检失败: ' + e.message, 'error');
+    }
+}
+
+async function testAllCommandsPrint() {
+    try {
+        const printer = getT16Printer();
+        log('生成全命令综合打印任务...');
+        const task = await HE.openTask('全命令综合测试页');
+        task.page(1, 210, 297, 'A4')
+            .copies(1)
+            .option('duplex', 0)
+            .option('dpi', 300);
+        if (printer) task.printer(printer);
+
+        const image = generateCanvas();
+        const demoPdf = createDemoPdfDataUrl();
+        task.text(100, 120, 1860, 80, 'HePrint 全命令综合测试页')
+            .style('FontName', 'Microsoft YaHei')
+            .style('FontSize', 22)
+            .style('Bold', 1)
+            .style('Alignment', 2)
+            .styleA(0, 'FontColor', '#1d4776')
+            .line(210, 120, 210, 1980, 'solid', 2)
+            .text(250, 120, 1860, 50, '覆盖：文本、样式、HTML、表格、图片、原生 PDF、条码、线框、分页、多任务、队列。')
+            .style('FontSize', 11)
+            .style('Bold', 0)
+            .style('Alignment', 1)
+            .rect(330, 120, 900, 360, 'solid', 1)
+            .html(350, 150, 840, 140, '<b>HTML 块</b><br><span style="color:red">服务端会提取文本打印</span><br>适合轻量富文本。')
+            .table(520, 150, 840, 230, '<table><tr><th>命令</th><th>状态</th></tr><tr><td>HE_ADD_TABLE</td><td>OK</td></tr><tr><td>HE_SET_STYLEA</td><td>OK</td></tr></table>')
+            .image(330, 1100, 360, 240, image)
+            .text(590, 1100, 700, 50, 'HE_ADD_IMAGE: Canvas 生成 PNG')
+            .style('FontSize', 10)
+            .barcode(700, 1100, 320, 320, 'QRCode', 'https://heprint.local/demo/all-commands')
+            .text(1040, 1100, 700, 50, 'HE_ADD_BARCODE: QRCode')
+            .style('FontSize', 10)
+            .pdf(760, 150, 360, 240, demoPdf)
+            .text(1030, 150, 800, 50, 'HE_ADD_PDF: Windows 原生 PDF 渲染')
+            .style('FontSize', 10)
+            .line(1130, 120, 1130, 1980, 'dashed', 1)
+            .text(1180, 120, 1860, 60, '样式矩阵')
+            .style('FontSize', 16)
+            .style('Bold', 1);
+
+        const rows = [
+            ['FontSize', '8 / 10 / 12 / 16 / 20 pt'],
+            ['FontColor', '#f67a89 / #89d729 / #467799'],
+            ['Alignment', '左 / 中 / 右'],
+            ['Bold/Italic/Underline', '组合样式'],
+            ['LineStyle', 'solid / dashed / dotted']
+        ];
+        rows.forEach((row, i) => {
+            const y = 1270 + i * 80;
+            task.text(y, 180, 520, 50, row[0]).style('FontSize', 11).style('Bold', 1)
+                .text(y, 720, 1200, 50, row[1]).style('FontSize', 11).style('Bold', 0);
+        });
+
+        task.newPage()
+            .text(120, 120, 1860, 80, '第二页：分页、任务、打印机与队列')
+            .style('FontSize', 20)
+            .style('Bold', 1)
+            .style('Alignment', 2)
+            .line(230, 120, 230, 1980, 'solid', 2)
+            .text(300, 120, 1860, 50, 'HE_NEW_PAGE 已强制换页。HE_PRINT_TASK 将按 taskId 提交当前任务。')
+            .style('FontSize', 12)
+            .style('Bold', 0)
+            .style('Alignment', 1)
+            .text(380, 120, 1860, 50, '打印机: ' + (printer || '系统默认打印机'))
+            .text(450, 120, 1860, 50, '创建时间: ' + new Date().toLocaleString())
+            .rect(540, 120, 1860, 360, 'dotted', 2)
+            .text(590, 180, 1700, 50, '这是一张面向真实验收的综合页，不是空白示例。')
+            .style('FontSize', 14)
+            .style('Bold', 1)
+            .text(680, 180, 1700, 50, '请检查：页眉、线条、二维码、图片、文本对齐、中文、分页和任务队列。')
+            .style('FontSize', 12)
+            .style('Bold', 0);
+
+        await task.send();
+        const queueBefore = await HE.getQueueStatus();
+        log(`提交前队列: running=${queueBefore.runningJobs}, queue=${queueBefore.queueLength}`);
+        logCmd('HE_PRINT_TASK', { taskId: task.id, silent: true });
+        const result = await task.print(true);
+        log(`✅ 全命令综合页已提交: ${JSON.stringify(result)}`, 'success');
+    } catch (e) {
+        log('❌ 全命令综合页失败: ' + e.message, 'error');
+    }
+}
+
+async function testLodopAliasPrint() {
+    try {
+        const printer = getT16Printer();
+        log('使用 C-Lodop 风格别名生成打印任务...');
+        await HE.PRINT_INIT('C-Lodop 别名兼容测试');
+        await HE.SET_PRINT_PAGESIZE(1, 210, 297, 'A4');
+        await HE.SET_PRINT_COPIES(1);
+        await HE.SET_PRINT_MODE('dpi', 300);
+        if (printer) await HE.SET_PRINTER_INDEX(printer);
+        await HE.ADD_PRINT_TEXT(120, 120, 1860, 80, 'C-Lodop 别名兼容测试');
+        await HE.SET_PRINT_STYLEA(0, 'FontSize', 22);
+        await HE.SET_PRINT_STYLEA(0, 'Bold', 1);
+        await HE.SET_PRINT_STYLEA(0, 'Alignment', 2);
+        await HE.ADD_PRINT_HTM(250, 120, 900, 180, '<b>ADD_PRINT_HTM</b><br>兼容 HTML 命令命名。');
+        await HE.ADD_PRINT_TABLE(480, 120, 900, 260, '<table><tr><th>别名</th><th>HE 命令</th></tr><tr><td>PRINTA</td><td>HE_PRINT_SILENT</td></tr></table>');
+        await HE.ADD_PRINT_BARCODE(260, 1180, 360, 360, 'QRCode', 'LODOP_ALIAS_HEPRINT');
+        await HE.ADD_PRINT_LINE(820, 120, 820, 1980, 'dashed', 1);
+        await HE.ADD_PRINT_RECT(900, 120, 1860, 500, 'solid', 2);
+        await HE.ADD_PRINT_TEXT(960, 180, 1700, 50, '如果此页能够打印，说明 C-Lodop 常见命名已经可迁移。');
+        await HE.SET_PRINT_STYLEA(0, 'FontSize', 12);
+        await HE.NEWPAGE();
+        await HE.ADD_PRINT_TEXT(120, 120, 1860, 80, '第二页：NEWPAGE / PRINTA');
+        await HE.SET_PRINT_STYLEA(0, 'FontSize', 20);
+        await HE.SET_PRINT_STYLEA(0, 'Bold', 1);
+        const result = await HE.PRINTA();
+        log(`✅ C-Lodop 别名打印已提交: ${JSON.stringify(result)}`, 'success');
+    } catch (e) {
+        log('❌ C-Lodop 别名打印失败: ' + e.message, 'error');
+    }
+}
+
+async function testRawCommand() {
+    try {
+        const printer = getT16Printer() || await HE.getDefaultPrinter();
+        const raw = document.getElementById('t16-raw').value.trim();
+        if (!printer) {
+            log('❌ 未找到可发送 RAW 的打印机', 'error');
+            return;
+        }
+        logCmd('HE_SEND_RAW', { printerName: printer, encoding: 'hex', bytes: raw.length / 2 });
+        const result = await HE.sendRaw(printer, raw, 'hex');
+        log(`✅ RAW 已发送: ${JSON.stringify(result)}`, 'success');
+    } catch (e) {
+        log('❌ RAW 发送失败: ' + e.message, 'error');
+    }
+}
+
+async function testClearTasks() {
+    try {
+        logCmd('HE_CLEAR', {});
+        const result = await HE.clear();
+        log(`✅ 已清理任务: ${JSON.stringify(result)}`, 'success');
+    } catch (e) {
+        log('❌ 清理任务失败: ' + e.message, 'error');
     }
 }
 

@@ -3,40 +3,142 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// 与文档第 3 章保持一致的 25 个命令
+/// 与服务端路由保持一致的 HE_xxx 命令
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "method", content = "params", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(
+    tag = "method",
+    content = "params",
+    rename_all = "SCREAMING_SNAKE_CASE"
+)]
 pub enum HeCommand {
     /// 初始化任务
-    HeInit { task_name: String },
+    HeInit {
+        task_name: String,
+    },
+    HeOpenTask {
+        task_name: String,
+    },
+    HeCloseTask {
+        task_id: String,
+    },
+    HeListTasks,
+    HeClear,
 
-    HeAddText { top: i32, left: i32, width: i32, height: i32, text: String },
-    HeAddHtml { top: i32, left: i32, width: i32, height: i32, html: String },
-    HeAddTable { top: i32, left: i32, width: i32, height: i32, table_html: String },
-    HeAddImage { top: i32, left: i32, width: i32, height: i32, src: String },
-    HeAddBarcode { top: i32, left: i32, width: i32, height: i32, btype: String, value: String },
-    HeAddPdf { top: i32, left: i32, width: i32, height: i32, content: String },
-    HeAddLine { top1: i32, left1: i32, top2: i32, left2: i32, line_style: Option<String>, line_width: Option<f64> },
-    HeAddRect { top: i32, left: i32, width: i32, height: i32, line_style: Option<String>, line_width: Option<f64> },
+    HeAddText {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        text: String,
+    },
+    HeAddHtml {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        html: String,
+    },
+    HeAddTable {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        table_html: String,
+    },
+    HeAddImage {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        src: String,
+    },
+    HeAddBarcode {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        btype: String,
+        value: String,
+    },
+    HeAddPdf {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        content: String,
+    },
+    HeAddLine {
+        top1: i32,
+        left1: i32,
+        top2: i32,
+        left2: i32,
+        line_style: Option<String>,
+        line_width: Option<f64>,
+    },
+    HeAddRect {
+        top: i32,
+        left: i32,
+        width: i32,
+        height: i32,
+        line_style: Option<String>,
+        line_width: Option<f64>,
+    },
 
-    HeSetStyle { name: String, value: Value },
-    HeSetPage { orient: i32, width: f64, height: f64, name: Option<String> },
-    HeSetPrinter { printer: Value },     // string | number
-    HeSetCopies { count: u32 },
-    HeSetOption { key: String, value: Value },
+    HeSetStyle {
+        name: String,
+        value: Value,
+    },
+    #[serde(rename = "HE_SET_STYLEA")]
+    HeSetStyleA {
+        index: i32,
+        name: String,
+        value: Value,
+    },
+    HeSetPage {
+        orient: i32,
+        width: f64,
+        height: f64,
+        name: Option<String>,
+    },
+    HeSetPrinter {
+        printer: Value,
+    }, // string | number
+    HeSetCopies {
+        count: u32,
+    },
+    HeSetOption {
+        key: String,
+        value: Value,
+    },
 
     HePrint,
     HePrintSilent,
+    HePrintTask {
+        task_id: String,
+        silent: Option<bool>,
+    },
     HePreview,
     HeNewPage,
 
     HeGetPrinters,
+    HeGetPrinterCount,
+    HeGetPrinterName {
+        index: i32,
+    },
     HeGetDefaultPrinter,
-    HeHasPrinter { name: String },
-    HeGetInfo { key: String },
+    HeHasPrinter {
+        name: String,
+    },
+    HeGetInfo {
+        key: String,
+    },
 
-    HeOnResult,             // 仅注册回调，无具体参数
-    HeSendRaw { printer_name: String, data: String, encoding: Option<String> },
+    HeOnResult, // 仅注册回调，无具体参数
+    HeSendRaw {
+        printer_name: String,
+        data: String,
+        encoding: Option<String>,
+    },
 
     /// 心跳/版本探测
     HeVersion,
@@ -46,6 +148,10 @@ impl HeCommand {
     pub fn name(&self) -> &'static str {
         match self {
             Self::HeInit { .. } => "HE_INIT",
+            Self::HeOpenTask { .. } => "HE_OPEN_TASK",
+            Self::HeCloseTask { .. } => "HE_CLOSE_TASK",
+            Self::HeListTasks => "HE_LIST_TASKS",
+            Self::HeClear => "HE_CLEAR",
             Self::HeAddText { .. } => "HE_ADD_TEXT",
             Self::HeAddHtml { .. } => "HE_ADD_HTML",
             Self::HeAddTable { .. } => "HE_ADD_TABLE",
@@ -55,15 +161,19 @@ impl HeCommand {
             Self::HeAddLine { .. } => "HE_ADD_LINE",
             Self::HeAddRect { .. } => "HE_ADD_RECT",
             Self::HeSetStyle { .. } => "HE_SET_STYLE",
+            Self::HeSetStyleA { .. } => "HE_SET_STYLEA",
             Self::HeSetPage { .. } => "HE_SET_PAGE",
             Self::HeSetPrinter { .. } => "HE_SET_PRINTER",
             Self::HeSetCopies { .. } => "HE_SET_COPIES",
             Self::HeSetOption { .. } => "HE_SET_OPTION",
             Self::HePrint => "HE_PRINT",
             Self::HePrintSilent => "HE_PRINT_SILENT",
+            Self::HePrintTask { .. } => "HE_PRINT_TASK",
             Self::HePreview => "HE_PREVIEW",
             Self::HeNewPage => "HE_NEW_PAGE",
             Self::HeGetPrinters => "HE_GET_PRINTERS",
+            Self::HeGetPrinterCount => "HE_GET_PRINTER_COUNT",
+            Self::HeGetPrinterName { .. } => "HE_GET_PRINTER_NAME",
             Self::HeGetDefaultPrinter => "HE_GET_DEFAULT_PRINTER",
             Self::HeHasPrinter { .. } => "HE_HAS_PRINTER",
             Self::HeGetInfo { .. } => "HE_GET_INFO",

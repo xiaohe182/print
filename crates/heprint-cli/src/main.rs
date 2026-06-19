@@ -1,4 +1,4 @@
-//! HePrint 桌面端应用 v1.0
+//! HePrint 桌面端应用 v1.1
 //!
 //! 三件套：
 //! 1. 系统托盘（常驻右下角）—— Shell_NotifyIconW
@@ -12,27 +12,29 @@
 
 #![cfg_attr(all(not(debug_assertions)), windows_subsystem = "windows")]
 
+use anyhow::Result;
 use heprint_server::{run, ServerConfig};
-use std::time::Instant;
 use parking_lot::Mutex;
+use std::net::TcpListener;
+use std::time::Instant;
+use tracing_subscriber::EnvFilter;
 use windows::core::w;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
+use windows::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, SetBkMode, TextOutW, UpdateWindow, PAINTSTRUCT, TRANSPARENT,
+};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW,
-    DispatchMessageW, GetCursorPos, GetMessageW, LoadCursorW, LoadIconW, PostQuitMessage,
-    RegisterClassExW, SetForegroundWindow, ShowWindow, TrackPopupMenu, TranslateMessage,
-    IDC_ARROW, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP,
-    WM_COMMAND, WM_DESTROY, WM_LBUTTONUP, WM_PAINT, WM_RBUTTONUP, WNDCLASSEXW,
-    WS_EX_APPWINDOW, WS_OVERLAPPEDWINDOW, MF_SEPARATOR, MF_STRING, IDI_INFORMATION,
-    CW_USEDEFAULT,
+    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetCursorPos,
+    GetMessageW, LoadCursorW, LoadIconW, PostQuitMessage, RegisterClassExW, SetForegroundWindow,
+    ShowWindow, TrackPopupMenu, TranslateMessage, CW_USEDEFAULT, IDC_ARROW, IDI_INFORMATION,
+    MF_SEPARATOR, MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP,
+    WM_COMMAND, WM_DESTROY, WM_LBUTTONUP, WM_PAINT, WM_RBUTTONUP, WNDCLASSEXW, WS_EX_APPWINDOW,
+    WS_OVERLAPPEDWINDOW,
 };
-use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, TextOutW, SetBkMode, UpdateWindow, PAINTSTRUCT, TRANSPARENT};
-use tracing_subscriber::EnvFilter;
-use anyhow::Result;
 
 const WM_TRAYICON: u32 = WM_APP + 1;
 const ID_TRAY: u32 = 1001;
@@ -61,6 +63,17 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let config = parse_args(&args);
 
+    // Prevent a second tray process from surviving without an HTTP service.
+    if !service_port_available(&config) {
+        tracing::info!(
+            "HePrint is already running on {}:{}",
+            config.host,
+            config.http_port
+        );
+        open_test_page(config.http_port);
+        return Ok(());
+    }
+
     // 启动打印服务（独立线程）
     let server_config = config.clone();
     std::thread::Builder::new()
@@ -72,14 +85,19 @@ fn main() -> Result<()> {
                 .build()
                 .unwrap();
             *SERVICE_STARTED.lock() = Some(Instant::now());
-            tracing::info!("✅ HePrint 服务已启动: {}:{}", server_config.host, server_config.http_port);
+            tracing::info!(
+                "✅ HePrint 服务已启动: {}:{}",
+                server_config.host,
+                server_config.http_port
+            );
             runtime.block_on(async move {
                 if let Err(e) = run(server_config).await {
-                    tracing::error!("服务异常: {e}");
+                    tracing::error!("HePrint service stopped unexpectedly: {e}");
+                    std::process::exit(1);
                 }
             });
         })
-        .ok();
+        .map_err(|e| anyhow::anyhow!("failed to start HePrint service thread: {e}"))?;
 
     // 启动桌面端
     run_desktop()
@@ -99,7 +117,11 @@ fn run_desktop() -> Result<()> {
             hInstance: instance,
             lpszClassName: class_name,
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap(),
-            hIcon: LoadIconW(windows::Win32::Foundation::HINSTANCE::default(), IDI_INFORMATION).unwrap_or_default(),
+            hIcon: LoadIconW(
+                windows::Win32::Foundation::HINSTANCE::default(),
+                IDI_INFORMATION,
+            )
+            .unwrap_or_default(),
             ..Default::default()
         };
         let atom = RegisterClassExW(&wc);
@@ -109,19 +131,23 @@ fn run_desktop() -> Result<()> {
         }
 
         // 创建主窗口
-        let title = w!("HePrint 桌面端 - 打印服务 v1.0");
+        let title = w!("HePrint 桌面端 - 打印服务 v1.1");
         tracing::info!("正在创建主窗口...");
         let hwnd = CreateWindowExW(
             WS_EX_APPWINDOW,
             class_name,
             title,
             WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, CW_USEDEFAULT, 440, 320,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            440,
+            320,
             None,
             None,
             instance,
             None,
-        ).map_err(|e| {
+        )
+        .map_err(|e| {
             tracing::error!("CreateWindowExW 失败: {e:?}, atom={atom}");
             e
         })?;
@@ -164,7 +190,8 @@ unsafe fn create_tray_icon(hwnd: HWND) {
     let icon = LoadIconW(
         windows::Win32::Foundation::HINSTANCE::default(),
         IDI_INFORMATION,
-    ).unwrap_or_default();
+    )
+    .unwrap_or_default();
 
     let mut nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
@@ -177,7 +204,7 @@ unsafe fn create_tray_icon(hwnd: HWND) {
         ..Default::default()
     };
     // 写 "HePrint 打印服务" 字符到 szTip
-    let tip_text: Vec<u16> = "HePrint 打印服务 v1.0\0".encode_utf16().collect();
+    let tip_text: Vec<u16> = "HePrint 打印服务 v1.1\0".encode_utf16().collect();
     for i in 0..tip_text.len().min(127) {
         nid.szTip[i] = tip_text[i];
     }
@@ -192,13 +219,38 @@ unsafe fn setup_tray_menu(_hwnd: HWND) {
 unsafe fn show_context_menu(hwnd: HWND) {
     use windows::Win32::UI::WindowsAndMessaging::MENU_ITEM_FLAGS;
     let menu = CreatePopupMenu().unwrap();
-    let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_STRING.0), IDM_SHOW, w!("📋 显示主窗口"));
-    let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_STRING.0), IDM_HIDE, w!("👁 隐藏主窗口"));
+    let _ = AppendMenuW(
+        menu,
+        MENU_ITEM_FLAGS(MF_STRING.0),
+        IDM_SHOW,
+        w!("📋 显示主窗口"),
+    );
+    let _ = AppendMenuW(
+        menu,
+        MENU_ITEM_FLAGS(MF_STRING.0),
+        IDM_HIDE,
+        w!("👁 隐藏主窗口"),
+    );
     let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_SEPARATOR.0), 0, w!(""));
-    let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_STRING.0), IDM_OPEN_TEST, w!("🌐 打开测试页"));
-    let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_STRING.0), IDM_OPEN_FOLDER, w!("📂 打开安装目录"));
+    let _ = AppendMenuW(
+        menu,
+        MENU_ITEM_FLAGS(MF_STRING.0),
+        IDM_OPEN_TEST,
+        w!("🌐 打开测试页"),
+    );
+    let _ = AppendMenuW(
+        menu,
+        MENU_ITEM_FLAGS(MF_STRING.0),
+        IDM_OPEN_FOLDER,
+        w!("📂 打开安装目录"),
+    );
     let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_SEPARATOR.0), 0, w!(""));
-    let _ = AppendMenuW(menu, MENU_ITEM_FLAGS(MF_STRING.0), IDM_QUIT, w!("❌ 退出 HePrint"));
+    let _ = AppendMenuW(
+        menu,
+        MENU_ITEM_FLAGS(MF_STRING.0),
+        IDM_QUIT,
+        w!("❌ 退出 HePrint"),
+    );
 
     let mut pt = POINT::default();
     let _ = GetCursorPos(&mut pt);
@@ -237,17 +289,14 @@ fn execute_menu_command(cmd: u32) {
                 }
             }
             x if x == IDM_OPEN_TEST as u32 => {
-                let _ = std::process::Command::new("cmd")
-                    .args(&["/c", "start", "", "http://127.0.0.1:18000/"])
-                    .spawn();
+                open_test_page(18000);
             }
             x if x == IDM_OPEN_FOLDER as u32 => {
                 if let Some(dir) = std::env::current_exe()
                     .ok()
-                    .and_then(|p| p.parent().map(|p| p.to_path_buf())) {
-                    let _ = std::process::Command::new("explorer")
-                        .arg(&dir)
-                        .spawn();
+                    .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                {
+                    let _ = std::process::Command::new("explorer").arg(&dir).spawn();
                 }
             }
             x if x == IDM_QUIT as u32 => {
@@ -302,8 +351,9 @@ unsafe extern "system" fn wnd_proc(
                 ];
                 for (i, line) in lines.iter().enumerate() {
                     if !line.is_empty() {
-                        let text: Vec<u16> = line.encode_utf16().chain(std::iter::once(0)).collect();
-                        let _ = TextOutW(hdc, 20, 20 + i as i32 * 22, &text[..text.len()-1]);
+                        let text: Vec<u16> =
+                            line.encode_utf16().chain(std::iter::once(0)).collect();
+                        let _ = TextOutW(hdc, 20, 20 + i as i32 * 22, &text[..text.len() - 1]);
                     }
                 }
             }
@@ -344,6 +394,25 @@ unsafe extern "system" fn wnd_proc(
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
+}
+
+fn service_port_available(config: &ServerConfig) -> bool {
+    TcpListener::bind((config.host.as_str(), config.http_port)).is_ok()
+}
+
+fn open_test_page(port: u16) {
+    let local_page = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|dir| dir.join("index.html")))
+        .filter(|path| path.is_file());
+
+    let target = local_page
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|| format!("http://127.0.0.1:{port}/"));
+
+    let _ = std::process::Command::new("cmd")
+        .args(["/c", "start", "", target.as_str()])
+        .spawn();
 }
 
 fn parse_args(args: &[String]) -> ServerConfig {

@@ -3,7 +3,7 @@ setlocal
 set "DIR=%~dp0"
 echo.
 echo ========================================
-echo   HePrint v1.0.0 - 启动服务
+echo   HePrint v1.1.1 - 启动服务
 echo ========================================
 echo.
 

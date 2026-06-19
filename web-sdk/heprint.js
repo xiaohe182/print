@@ -254,6 +254,10 @@
             this.commands.push({ method: 'HE_SET_STYLE', params: { taskId: this.id, name, value } });
             return this;
         }
+        styleA(index, name, value) {
+            this.commands.push({ method: 'HE_SET_STYLEA', params: { taskId: this.id, index, name, value } });
+            return this;
+        }
 
         /**
          * 发送累积的所有命令到服务端
@@ -364,6 +368,10 @@
             return await this.transport.call('HE_CLOSE_TASK', { taskId });
         }
 
+        async clear() {
+            return await this.transport.call('HE_CLEAR');
+        }
+
         /**
          * 列出所有活跃任务
          */
@@ -388,6 +396,7 @@
         async newPage(taskId) { return await this._call('HE_NEW_PAGE', { taskId }); }
 
         async setStyle(name, value, taskId) { return await this._call('HE_SET_STYLE', { taskId, name, value }); }
+        async setStyleA(index, name, value, taskId) { return await this._call('HE_SET_STYLEA', { taskId, index, name, value }); }
         async setPage(orient, width, height, name, taskId) { return await this._call('HE_SET_PAGE', { taskId, orient, width, height, name: name || '' }); }
         async setPrinter(printer, taskId) { return await this._call('HE_SET_PRINTER', { taskId, printer }); }
         async setCopies(count, taskId) { return await this._call('HE_SET_COPIES', { taskId, count }); }
@@ -446,6 +455,14 @@
             const r = await this.transport.call('HE_GET_PRINTERS');
             return (r && r.printers) || [];
         }
+        async getPrinterCount() {
+            const r = await this.transport.call('HE_GET_PRINTER_COUNT');
+            return (r && r.count) || 0;
+        }
+        async getPrinterName(index) {
+            const r = await this.transport.call('HE_GET_PRINTER_NAME', { index });
+            return (r && r.name) || '';
+        }
         async getDefaultPrinter() {
             const r = await this.transport.call('HE_GET_DEFAULT_PRINTER');
             return (r && r.name) || '';
@@ -468,6 +485,36 @@
         onResult(callback) {
             if (typeof callback === 'function') this.callbacks.onResult.push(callback);
         }
+
+        // ========== C-Lodop 风格兼容别名 ==========
+        async PRINT_INIT(taskName) { return await this.init(taskName); }
+        async PRINT_INITA(_top, _left, _width, _height, taskName) { return await this.init(taskName || 'untitled'); }
+        async ADD_PRINT_TEXT(t, l, w, h, text, taskId) { return await this.addText(t, l, w, h, text, taskId); }
+        async ADD_PRINT_HTM(t, l, w, h, html, taskId) { return await this.addHtml(t, l, w, h, html, taskId); }
+        async ADD_PRINT_HTML(t, l, w, h, html, taskId) { return await this.addHtml(t, l, w, h, html, taskId); }
+        async ADD_PRINT_TABLE(t, l, w, h, tableHtml, taskId) { return await this.addTable(t, l, w, h, tableHtml, taskId); }
+        async ADD_PRINT_IMAGE(t, l, w, h, src, taskId) { return await this.addImage(t, l, w, h, src, taskId); }
+        async ADD_PRINT_BARCODE(t, l, w, h, type, value, taskId) { return await this.addBarcode(t, l, w, h, type, value, taskId); }
+        async ADD_PRINT_PDF(t, l, w, h, content, taskId) { return await this.addPdf(t, l, w, h, content, taskId); }
+        async ADD_PRINT_LINE(t1, l1, t2, l2, lineStyle, lineWidth, taskId) { return await this.addLine(t1, l1, t2, l2, lineStyle, lineWidth, taskId); }
+        async ADD_PRINT_RECT(t, l, w, h, lineStyle, lineWidth, taskId) { return await this.addRect(t, l, w, h, lineStyle, lineWidth, taskId); }
+        async SET_PRINT_STYLE(name, value, taskId) { return await this.setStyle(name, value, taskId); }
+        async SET_PRINT_STYLEA(index, name, value, taskId) { return await this.setStyleA(index, name, value, taskId); }
+        async SET_PRINT_PAGESIZE(orient, width, height, name, taskId) { return await this.setPage(orient, width, height, name, taskId); }
+        async SET_PRINTER_INDEX(printer, taskId) { return await this.setPrinter(printer, taskId); }
+        async SET_PRINT_COPIES(count, taskId) { return await this.setCopies(count, taskId); }
+        async SET_PRINT_MODE(key, value, taskId) { return await this.setOption(key, value, taskId); }
+        async NEWPAGE(taskId) { return await this.newPage(taskId); }
+        async PRINT() { return await this.print(); }
+        async PRINTA() { return await this.printSilent(); }
+        async PREVIEW() { return await this.preview(); }
+        async GET_PRINTER_NAMES() { return await this.getPrinters(); }
+        async GET_PRINTER_COUNT() { return await this.getPrinterCount(); }
+        async GET_PRINTER_NAME(index) { return await this.getPrinterName(index); }
+        async GET_DEFAULTPRINTER() { return await this.getDefaultPrinter(); }
+        async IS_PRINTER_EXIST(name) { return await this.hasPrinter(name); }
+        async GET_VALUE(key) { return await this.getInfo(key); }
+        async SEND_PRINT_RAWDATA(printerName, data, encoding) { return await this.sendRaw(printerName, data, encoding); }
 
         // ========== Builder（兼容旧 API）============
         build(taskName) {
@@ -493,13 +540,17 @@
                 }
             };
             // 加上缺失方法
-            ['html', 'table', 'image', 'barcode', 'pdf', 'line', 'rect', 'newPage', 'option', 'style'].forEach(m => {
+            ['html', 'table', 'image', 'barcode', 'pdf', 'line', 'rect', 'newPage', 'option', 'style', 'styleA'].forEach(m => {
                 builder[m] = function(...args) {
                     const map = { html: 'HE_ADD_HTML', table: 'HE_ADD_TABLE', image: 'HE_ADD_IMAGE',
                                  barcode: 'HE_ADD_BARCODE', pdf: 'HE_ADD_PDF', line: 'HE_ADD_LINE',
                                  rect: 'HE_ADD_RECT', newPage: 'HE_NEW_PAGE' };
-                    if (m === 'style' || m === 'option') {
-                        this._commands.push([m === 'style' ? 'HE_SET_STYLE' : 'HE_SET_OPTION', { name: args[0], value: args[1] }]);
+                    if (m === 'style') {
+                        this._commands.push(['HE_SET_STYLE', { name: args[0], value: args[1] }]);
+                    } else if (m === 'styleA') {
+                        this._commands.push(['HE_SET_STYLEA', { index: args[0], name: args[1], value: args[2] }]);
+                    } else if (m === 'option') {
+                        this._commands.push(['HE_SET_OPTION', { key: args[0], value: args[1] }]);
                     } else {
                         const method = map[m];
                         if (method === 'HE_ADD_BARCODE') {
@@ -579,6 +630,16 @@
     // ============ 暴露 ============
     const defaultInstance = new HePrint();
     defaultInstance.ERROR_CODES = ERROR_CODES;
+    defaultInstance.COMMANDS = [
+        'HE_INIT', 'HE_OPEN_TASK', 'HE_CLOSE_TASK', 'HE_LIST_TASKS', 'HE_CLEAR',
+        'HE_ADD_TEXT', 'HE_ADD_HTML', 'HE_ADD_TABLE', 'HE_ADD_IMAGE', 'HE_ADD_BARCODE',
+        'HE_ADD_PDF', 'HE_ADD_LINE', 'HE_ADD_RECT', 'HE_SET_STYLE', 'HE_SET_STYLEA',
+        'HE_SET_PAGE', 'HE_SET_PRINTER', 'HE_SET_COPIES', 'HE_SET_OPTION',
+        'HE_PRINT', 'HE_PRINT_SILENT', 'HE_PRINT_TASK', 'HE_PREVIEW', 'HE_NEW_PAGE',
+        'HE_GET_PRINTERS', 'HE_GET_PRINTER_COUNT', 'HE_GET_PRINTER_NAME',
+        'HE_GET_DEFAULT_PRINTER', 'HE_HAS_PRINTER', 'HE_GET_INFO', 'HE_ON_RESULT',
+        'HE_SEND_RAW', 'HE_VERSION'
+    ];
     defaultInstance.HePrint = HePrint;
     defaultInstance.PrintTask = PrintTask;
 

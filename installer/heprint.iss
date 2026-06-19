@@ -1,5 +1,5 @@
 ; ===============================================
-; HePrint v1.0.0 Inno Setup 脚本
+; HePrint v1.1.1 Inno Setup 脚本
 ; 高级安装包：单文件 .exe 安装器
 ; 编译：需先安装 Inno Setup 6+ → https://jrsoftware.org/isinfo.php
 ; 然后用 Inno Setup 打开本文件 → 编译
@@ -26,7 +26,7 @@ DefaultGroupName=HePrint
 
 ; 输出
 OutputDir=dist
-OutputBaseFilename=HePrint-v1.0.0-setup
+OutputBaseFilename=HePrint-v1.1.1-setup
 SetupIconFile=resources\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
